@@ -1,0 +1,3 @@
+#!/bin/bash
+# Example rolf plugin
+echo -n "free.value "; df -h / | tail -n 1 | awk '{ print $5 }' | cut -d % -f 1
