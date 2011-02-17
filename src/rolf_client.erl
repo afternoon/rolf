@@ -9,7 +9,8 @@
 
 %% @doc Subscribe to measurement messages from Server.
 subscribe(Node) ->
-    rpc:call(Node, rolf_server, start, []).
+    io:format("rolf_client:subscribe~n"),
+    rpc:call(Node, rolf_server, start, []),
     rpc:call(Node, rolf_server, subscribe, []).
 
 %% @doc Handle measurement message.
