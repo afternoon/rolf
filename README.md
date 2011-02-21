@@ -1,7 +1,7 @@
 Rolf
 ====
 
-- System monitoring/graphing tool like Munin.
+- System monitoring and graphing tool like Munin or collectd.
 - Written in Erlang.
 - Asynchronous data gathering.
 - Sample frequency up to 1 second, configured per plug-in.
@@ -18,3 +18,8 @@ Nodes currently just provide data for a master process which collects, stores
 and serves data via HTTP to clients. Nodes could collect and store their own
 data, transferring it to the master for graphing etc. Initially the architecture
 is intentionally quite similar to Munin's.
+
+Author
+------
+
+Ben Godfrey, ben@ben2.com, http://aftnn.org/

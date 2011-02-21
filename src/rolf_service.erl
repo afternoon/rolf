@@ -3,12 +3,28 @@
 %% @author Ben Godfrey <ben@ben2.com> [http://aftnn.org/]
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
+%%
+%% Rolf - a system monitoring and graphing tool like Munin or collectd.
+%% Copyright (C) 2011 Ben Godfrey.
+%%
+%% This program is free software: you can redistribute it and/or modify
+%% it under the terms of the GNU General Public License as published by
+%% the Free Software Foundation, either version 3 of the License, or
+%% (at your option) any later version.
+%%
+%% This program is distributed in the hope that it will be useful,
+%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%% GNU General Public License for more details.
+%%
+%% You should have received a copy of the GNU General Public License
+%% along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_service).
 -behaviour(gen_server).
 -export([
         % interface
-        start/1, stop/1, subscribe/2, poll/1,
+        start/1, stop/1, subscribe/2, unsubscribe/2, poll/1,
         % gen_server
         start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
         terminate/2, code_change/3,
@@ -18,7 +34,9 @@
 
 -define(PLUGIN_DIR, "../plugin.d").
 
-%% interface
+%% ===================================================================
+%% API functions
+%% ===================================================================
 
 %% @doc Start a service using Service as initial state.
 start(#service{name=Name}) ->
@@ -30,12 +48,19 @@ stop(Name) ->
 
 %% @doc Subscribe Client to updates from this service.
 subscribe(Name, Client) ->
-    gen_server:call(Name, {subscribe, Client}).
+    gen_server:cast(Name, {subscribe, Client}).
 
+%% @doc Unsubscribe Client from updates from this service.
+unsubscribe(Name, Client) ->
+    gen_server:cast(Name, {unsubscribe, Client}).
+
+%% @doc Trigger polling of this service manually, useful for inspecting and debugging
 poll(Name) ->
-    gen_server:call(Name, {poll}).
+    gen_server:cast(Name, {poll}).
 
-%% gen_server implementation
+%% ===================================================================
+%% Server callbacks
+%% ===================================================================
 
 start_link() ->
     io:format("rolf_service:start_link~n"),
@@ -48,17 +73,17 @@ init([]) ->
 
 handle_call(stop, _From, State) ->
     io:format("rolf_service:stop~n"),
-    {stop, normal, stopped, State};
+    {stop, normal, stopped, State}.
 
-handle_call({subscribe, C}, _From, #service{clients=Clients} = State) ->
+handle_cast({subscribe, C}, #service{clients=Clients} = State) ->
     io:format("rolf_service:subscribe~n"),
     {reply, ok, State#service{clients=[C|Clients]}};
 
-handle_call({unsubscribe, C}, _From, #service{clients=Clients} = State) ->
+handle_cast({unsubscribe, C}, #service{clients=Clients} = State) ->
     io:format("rolf_service:unsubscribe~n"),
     {reply, ok, State#service{clients=lists:delete(C, Clients)}};
 
-handle_call({poll}, _From, State) ->
+handle_cast({poll}, State) ->
     io:format("rolf_service:poll~n"),
     Clients = State#service.clients,
     case (Clients) of
@@ -73,9 +98,6 @@ handle_call({poll}, _From, State) ->
     end,
     {reply, ok, State}.
 
-handle_cast(_Msg, Ref) ->
-    {noreply, Ref}.
-
 handle_info(_Info, Ref) ->
     {noreply, Ref}.
 
@@ -85,7 +107,9 @@ terminate(_Reason, Service) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-%% util functions
+%% ===================================================================
+%% Utility functions
+%% ===================================================================
 
 %% @doc Send a set of results to a client.
 publish(Client, Results) ->

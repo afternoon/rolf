@@ -2,6 +2,22 @@
 %% @author Ben Godfrey <ben@ben2.com> [http://aftnn.org/]
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
+%%
+%% Rolf - a system monitoring and graphing tool like Munin or collectd.
+%% Copyright (C) 2011 Ben Godfrey.
+%%
+%% This program is free software: you can redistribute it and/or modify
+%% it under the terms of the GNU General Public License as published by
+%% the Free Software Foundation, either version 3 of the License, or
+%% (at your option) any later version.
+%%
+%% This program is distributed in the hope that it will be useful,
+%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%% GNU General Public License for more details.
+%%
+%% You should have received a copy of the GNU General Public License
+%% along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_server).
 -behaviour(gen_server).
@@ -10,7 +26,9 @@
         code_change/3]).
 -include("rolf.hrl").
 
-%% interface
+%% ===================================================================
+%% API functions
+%% ===================================================================
 
 %% @doc Start a rolf server on this node, start all services.
 start() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -19,12 +37,14 @@ start() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 stop() -> gen_server:call(?MODULE, stop).
 
 %% @doc Add a subscription for Client to receive all updates.
-subscribe(Client) -> gen_server:call(?MODULE, {subscribe, Client}).
+subscribe(Client) -> gen_server:cast(?MODULE, {subscribe, Client}).
 
 %% @doc Remove subscription for client.
-unsubscribe(Client) -> gen_server:call(?MODULE, {unsubscribe, Client}).
+unsubscribe(Client) -> gen_server:cast(?MODULE, {unsubscribe, Client}).
 
-%% gen_server implementation
+%% ===================================================================
+%% Server callbacks
+%% ===================================================================
 
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
@@ -35,19 +55,16 @@ init([]) ->
     start_services(Services),
     {ok, #server{clients=[], services=Services}}.
 
-handle_call({subscribe, C}, _From, #server{clients=Clients, services=Services} = State) ->
+handle_call(stop, _From, State) ->
+    {stop, normal, stopped, State}.
+
+handle_cast({subscribe, C}, #server{clients=Clients, services=Services} = State) ->
     io:format("rolf_server:subscribe"),
     lists:foreach(fun(S) -> rolf_service:subscribe(S#service.name, C) end, Services),
     {reply, ok, State#server{clients=[C|Clients]}};
 
-handle_call({unsubscribe, C}, _From, #server{clients=Clients} = State) ->
-    {reply, ok, State#server{clients=lists:delete(C, Clients)}};
-
-handle_call(stop, _From, State) ->
-    {stop, normal, stopped, State}.
-
-handle_cast(_Msg, Ref) ->
-    {noreply, Ref}.
+handle_cast({unsubscribe, C}, #server{clients=Clients} = State) ->
+    {reply, ok, State#server{clients=lists:delete(C, Clients)}}.
 
 handle_info(_Info, Ref) ->
     {noreply, Ref}.
@@ -59,7 +76,9 @@ terminate(_Reason, #server{services=Services}) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-% utils
+%% ===================================================================
+%% Utility functions
+%% ===================================================================
 
 %% @doc List all services configured to run on this server.
 find_services() ->
