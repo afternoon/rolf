@@ -58,24 +58,24 @@ init([]) ->
     start_services(Services),
     {ok, #server{clients=[], services=Services}}.
 
-handle_call(get_state, _From, State) ->
-    error_logger:info_report({rolf_server, get_state, State}),
-    {reply, State, State};
+handle_call(get_state, _From, Server) ->
+    error_logger:info_report({rolf_server, get_state, Server}),
+    {reply, Server, Server};
 
-handle_call(stop, _From, #server{services=Services} = State) ->
+handle_call(stop, _From, #server{services=Services} = Server) ->
     error_logger:info_report({rolf_server, stop}),
     lists:foreach(fun(S) -> rolf_service:stop(S#service.name) end, Services),
-    {stop, normal, stopped, State}.
+    {stop, normal, stopped, Server}.
 
-handle_cast({subscribe, C}, #server{clients=Clients, services=Services} = State) ->
+handle_cast({subscribe, C}, #server{clients=Clients, services=Services} = Server) ->
     error_logger:info_report({rolf_server, subscribe, C}),
     lists:foreach(fun(S) -> rolf_service:subscribe(S#service.name, C) end, Services),
-    {noreply, State#server{clients=[C|Clients]}};
+    {noreply, Server#server{clients=[C|Clients]}};
 
-handle_cast({unsubscribe, C}, #server{clients=Clients, services=Services} = State) ->
+handle_cast({unsubscribe, C}, #server{clients=Clients, services=Services} = Server) ->
     error_logger:info_report({rolf_server, unsubscribe, C}),
     lists:foreach(fun(S) -> rolf_service:unsubscribe(S#service.name, C) end, Services),
-    {noreply, State#server{clients=lists:delete(C, Clients)}}.
+    {noreply, Server#server{clients=lists:delete(C, Clients)}}.
 
 handle_info(_Info, Ref) ->
     {noreply, Ref}.
@@ -85,8 +85,8 @@ terminate(_Reason, #server{services=Services}) ->
     lists:foreach(fun(S) -> rolf_service:stop(S#service.name) end, Services),
     ok.
 
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+code_change(_OldVsn, Server, _Extra) ->
+    {ok, Server}.
 
 %% ===================================================================
 %% Utility functions
@@ -95,13 +95,15 @@ code_change(_OldVsn, State, _Extra) ->
 %% @doc List all services configured to run on this server.
 find_services() ->
     error_logger:info_report({rolf_server, find_services}),
-    Name = loadtime,
-    Cmd = [rolf_service, invoke, [loadtime]],
     Freq = 5000,
-    Services = [#service{name=Name, cmd=Cmd, freq=Freq, clients=[],
-            tref=undef}],
-    error_logger:info_report({rolf_server, find_services, Services}),
-    Services.
+    [#service{
+        name=loadtime,
+        cmd=[rolf_service, invoke, [loadtime]],
+        freq=Freq},
+     #service{
+        name=disk,
+        cmd=[rolf_service, invoke, [disk]],
+        freq=Freq}].
 
 %% @doc Start an instance of the rolf_service gen_server for each service.
 start_services([]) -> ok;

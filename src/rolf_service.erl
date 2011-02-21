@@ -64,38 +64,39 @@ get_state(Name) -> gen_server:call(service_name(Name), get_state).
 %% publish them to clients.
 init([Service]) ->
     error_logger:info_report({rolf_service, init, Service}),
+    start_emitting(Service),
     {ok, Service}.
 
-handle_call(get_state, _From, State) ->
-    {reply, State, State};
+handle_call(get_state, _From, Service) ->
+    {reply, Service, Service};
 
-handle_call(stop, _From, State) ->
+handle_call(stop, _From, Service) ->
     error_logger:info_report({rolf_service, stop}),
-    {stop, normal, stopped, State}.
+    {stop, normal, stopped, Service}.
 
-handle_cast({subscribe, C}, #service{clients=Clients} = State) ->
+handle_cast({subscribe, C}, #service{clients=Clients} = Service) ->
     error_logger:info_report({rolf_service, subscribe, C}),
     case (lists:member(C, Clients)) of
-        true -> {noreply, State};
-        false -> {noreply, State#service{clients=[C|Clients]}}
+        true -> {noreply, Service};
+        false -> {noreply, Service#service{clients=[C|Clients]}}
     end;
 
-handle_cast({unsubscribe, C}, #service{clients=Clients} = State) ->
+handle_cast({unsubscribe, C}, #service{clients=Clients} = Service) ->
     error_logger:info_report({rolf_service, unsubscribe, C}),
-    {noreply, State#service{clients=lists:delete(C, Clients)}};
+    {noreply, Service#service{clients=lists:delete(C, Clients)}};
 
-handle_cast({publish}, State) ->
-    Clients = State#service.clients,
+handle_cast({publish}, Service) ->
+    Clients = Service#service.clients,
     error_logger:info_report({rolf_service, publish, Clients}),
     case (Clients) of
         [] ->
             ok;
         _ -> 
-            [M, F, A] = State#service.cmd,
+            [M, F, A] = Service#service.cmd,
             Results = apply(M, F, A),
             lists:foreach(fun(C) -> send(C, Results) end, Clients)
     end,
-    {noreply, State}.
+    {noreply, Service}.
 
 handle_info(_Info, Ref) ->
     {noreply, Ref}.
@@ -103,8 +104,8 @@ handle_info(_Info, Ref) ->
 terminate(_Reason, Service) ->
     stop_emitting(Service).
 
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+code_change(_OldVsn, Service, _Extra) ->
+    {ok, Service}.
 
 %% ===================================================================
 %% Utility functions
@@ -129,7 +130,9 @@ invoke(Plugin) ->
 
 start_emitting(Service) ->
     error_logger:info_report({rolf_service, start_emitting}),
-    case timer:apply_interval(Service#service.freq, ?MODULE, publish, []) of
+    Name = Service#service.name,
+    Freq = Service#service.freq,
+    case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
         {ok, TRef} ->
             {ok, Service#service{tref=TRef}};
         _ ->

@@ -33,5 +33,6 @@ subscribe(Node) ->
 listen() ->
     receive
         X ->
-            error_logger:info_report({rolf_client, update, X})
+            error_logger:info_report({rolf_client, update, X}),
+            listen()
     end.
