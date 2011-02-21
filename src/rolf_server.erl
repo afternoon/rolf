@@ -21,8 +21,11 @@
 
 -module(rolf_server).
 -behaviour(gen_server).
--export([start/0, stop/0, subscribe/1, unsubscribe/1, start_link/0, init/1,
-        handle_call/3, handle_cast/2, handle_info/2, terminate/2,
+-export([
+        % api
+        start/0, stop/0, subscribe/1, unsubscribe/1, get_state/0,
+        % gen_server
+        init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
         code_change/3]).
 -include("rolf.hrl").
 
@@ -42,34 +45,43 @@ subscribe(Client) -> gen_server:cast(?MODULE, {subscribe, Client}).
 %% @doc Remove subscription for client.
 unsubscribe(Client) -> gen_server:cast(?MODULE, {unsubscribe, Client}).
 
+%% @doc Get internal state - for debugging.
+get_state() -> gen_server:call(?MODULE, get_state).
+
 %% ===================================================================
 %% Server callbacks
 %% ===================================================================
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
 init([]) ->
-    io:format("rolf_server:init"),
+    error_logger:info_report({rolf_server, init}),
     Services = find_services(),
     start_services(Services),
     {ok, #server{clients=[], services=Services}}.
 
-handle_call(stop, _From, State) ->
+handle_call(get_state, _From, State) ->
+    error_logger:info_report({rolf_server, get_state, State}),
+    {reply, State, State};
+
+handle_call(stop, _From, #server{services=Services} = State) ->
+    error_logger:info_report({rolf_server, stop}),
+    lists:foreach(fun(S) -> rolf_service:stop(S#service.name) end, Services),
     {stop, normal, stopped, State}.
 
 handle_cast({subscribe, C}, #server{clients=Clients, services=Services} = State) ->
-    io:format("rolf_server:subscribe"),
+    error_logger:info_report({rolf_server, subscribe, C}),
     lists:foreach(fun(S) -> rolf_service:subscribe(S#service.name, C) end, Services),
-    {reply, ok, State#server{clients=[C|Clients]}};
+    {noreply, State#server{clients=[C|Clients]}};
 
-handle_cast({unsubscribe, C}, #server{clients=Clients} = State) ->
-    {reply, ok, State#server{clients=lists:delete(C, Clients)}}.
+handle_cast({unsubscribe, C}, #server{clients=Clients, services=Services} = State) ->
+    error_logger:info_report({rolf_server, unsubscribe, C}),
+    lists:foreach(fun(S) -> rolf_service:unsubscribe(S#service.name, C) end, Services),
+    {noreply, State#server{clients=lists:delete(C, Clients)}}.
 
 handle_info(_Info, Ref) ->
     {noreply, Ref}.
 
 terminate(_Reason, #server{services=Services}) ->
+    error_logger:info_report({rolf_server, terminate}),
     lists:foreach(fun(S) -> rolf_service:stop(S#service.name) end, Services),
     ok.
 
@@ -82,14 +94,18 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% @doc List all services configured to run on this server.
 find_services() ->
-    io:format("rolf_server:find_services"),
+    error_logger:info_report({rolf_server, find_services}),
     Name = loadtime,
-    Cmd = [rolf_service, invoke, loadtime],
+    Cmd = [rolf_service, invoke, [loadtime]],
     Freq = 5000,
-    [#service{name=Name, cmd=Cmd, freq=Freq, clients=[], tref=undef}].
+    Services = [#service{name=Name, cmd=Cmd, freq=Freq, clients=[],
+            tref=undef}],
+    error_logger:info_report({rolf_server, find_services, Services}),
+    Services.
 
 %% @doc Start an instance of the rolf_service gen_server for each service.
+start_services([]) -> ok;
 start_services([S|Services]) ->
-    io:format("rolf_server:start_services"),
+    error_logger:info_report({rolf_server, start_services, S}),
     rolf_service:start(S),
     start_services(Services).

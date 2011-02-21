@@ -21,14 +21,17 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_client).
--export([subscribe/1, update/1]).
+-export([subscribe/1, listen/0]).
 
 %% @doc Subscribe to measurement messages from Server.
 subscribe(Node) ->
-    io:format("rolf_client:subscribe~n"),
+    error_logger:info_report({rolf_client, subscribe, Node}),
     rpc:call(Node, rolf_server, start, []),
-    rpc:call(Node, rolf_server, subscribe, []).
+    rpc:call(Node, rolf_server, subscribe, [self()]).
 
-%% @doc Handle measurement message.
-update(Results) ->
-    io:format("Result: ~p~n", [Results]).
+%% @doc Listen for measurement messages.
+listen() ->
+    receive
+        X ->
+            error_logger:info_report({rolf_client, update, X})
+    end.

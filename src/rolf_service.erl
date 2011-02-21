@@ -23,80 +23,79 @@
 -module(rolf_service).
 -behaviour(gen_server).
 -export([
-        % interface
-        start/1, stop/1, subscribe/2, unsubscribe/2, poll/1,
+        % api
+        start/1, stop/1, subscribe/2, unsubscribe/2, publish/1, get_state/1,
         % gen_server
-        start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2,
-        terminate/2, code_change/3,
+        init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
+        code_change/3,
         % utils
         invoke/1, start_emitting/1, stop_emitting/1]).
 -include("rolf.hrl").
 
--define(PLUGIN_DIR, "../plugin.d").
+-define(PLUGIN_DIR, "plugin.d").
 
 %% ===================================================================
 %% API functions
 %% ===================================================================
 
 %% @doc Start a service using Service as initial state.
-start(#service{name=Name}) ->
-    gen_server:start_link({local, Name}, ?MODULE, [Name], []).
+start(Service) -> gen_server:start_link({local, service_name(Service)}, ?MODULE, [Service], []).
 
 %% @doc Stop service Name.
-stop(Name) ->
-    gen_server:call(Name, stop).
+stop(Name) -> gen_server:call(service_name(Name), stop).
 
 %% @doc Subscribe Client to updates from this service.
-subscribe(Name, Client) ->
-    gen_server:cast(Name, {subscribe, Client}).
+subscribe(Name, Client) -> gen_server:cast(service_name(Name), {subscribe, Client}).
 
 %% @doc Unsubscribe Client from updates from this service.
-unsubscribe(Name, Client) ->
-    gen_server:cast(Name, {unsubscribe, Client}).
+unsubscribe(Name, Client) -> gen_server:cast(service_name(Name), {unsubscribe, Client}).
 
 %% @doc Trigger polling of this service manually, useful for inspecting and debugging
-poll(Name) ->
-    gen_server:cast(Name, {poll}).
+publish(Name) -> gen_server:cast(service_name(Name), {publish}).
+
+%% @doc Get internal state - for debugging.
+get_state(Name) -> gen_server:call(service_name(Name), get_state).
 
 %% ===================================================================
 %% Server callbacks
 %% ===================================================================
 
-start_link() ->
-    io:format("rolf_service:start_link~n"),
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-
 %% @doc Start service, create a timer which will poll for results regularly and
 %% publish them to clients.
-init([]) ->
-    io:format("rolf_service:init~n").
+init([Service]) ->
+    error_logger:info_report({rolf_service, init, Service}),
+    {ok, Service}.
+
+handle_call(get_state, _From, State) ->
+    {reply, State, State};
 
 handle_call(stop, _From, State) ->
-    io:format("rolf_service:stop~n"),
+    error_logger:info_report({rolf_service, stop}),
     {stop, normal, stopped, State}.
 
 handle_cast({subscribe, C}, #service{clients=Clients} = State) ->
-    io:format("rolf_service:subscribe~n"),
-    {reply, ok, State#service{clients=[C|Clients]}};
+    error_logger:info_report({rolf_service, subscribe, C}),
+    case (lists:member(C, Clients)) of
+        true -> {noreply, State};
+        false -> {noreply, State#service{clients=[C|Clients]}}
+    end;
 
 handle_cast({unsubscribe, C}, #service{clients=Clients} = State) ->
-    io:format("rolf_service:unsubscribe~n"),
-    {reply, ok, State#service{clients=lists:delete(C, Clients)}};
+    error_logger:info_report({rolf_service, unsubscribe, C}),
+    {noreply, State#service{clients=lists:delete(C, Clients)}};
 
-handle_cast({poll}, State) ->
-    io:format("rolf_service:poll~n"),
+handle_cast({publish}, State) ->
     Clients = State#service.clients,
+    error_logger:info_report({rolf_service, publish, Clients}),
     case (Clients) of
         [] ->
-            io:format("rolf_service:poll: no clients~n"),
             ok;
         _ -> 
-            io:format("rolf_service:poll: some clients~n"),
             [M, F, A] = State#service.cmd,
             Results = apply(M, F, A),
-            lists:foreach(fun(C) -> publish(C, Results) end, Clients)
+            lists:foreach(fun(C) -> send(C, Results) end, Clients)
     end,
-    {reply, ok, State}.
+    {noreply, State}.
 
 handle_info(_Info, Ref) ->
     {noreply, Ref}.
@@ -111,20 +110,26 @@ code_change(_OldVsn, State, _Extra) ->
 %% Utility functions
 %% ===================================================================
 
+%% @doc Get canonical name of service from name atom or service record.
+service_name(Name) when is_atom(Name) ->
+    list_to_atom(lists:concat([?MODULE, "_", atom_to_list(Name)]));
+service_name(Service) ->
+    service_name(Service#service.name).
+
 %% @doc Send a set of results to a client.
-publish(Client, Results) ->
-    io:format("rolf_service:publish~n"),
-    rpc:call(Client, rolf_client, update, [Results]).
+send(Client, Results) ->
+    error_logger:info_report({rolf_service, send, Client, Results}),
+    Client ! {results, Results}.
 
 %% @doc Invoke plug-in and return results.
 invoke(Plugin) ->
-    io:format("rolf_service:invoke~n"),
-    Prog = lists:concat([?PLUGIN_DIR, atom_to_list(Plugin)]),
+    error_logger:info_report({rolf_service, invoke, Plugin}),
+    Prog = lists:concat([?PLUGIN_DIR, "/", atom_to_list(Plugin)]),
     os:cmd(Prog).
 
 start_emitting(Service) ->
-    io:format("rolf_service:start_emitting~n"),
-    case timer:apply_interval(Service#service.freq, ?MODULE, poll, []) of
+    error_logger:info_report({rolf_service, start_emitting}),
+    case timer:apply_interval(Service#service.freq, ?MODULE, publish, []) of
         {ok, TRef} ->
             {ok, Service#service{tref=TRef}};
         _ ->
@@ -132,5 +137,5 @@ start_emitting(Service) ->
     end.
 
 stop_emitting(Service) ->
-    io:format("rolf_service:stop_emitting~n"),
+    error_logger:info_report({rolf_service, stop_emitting}),
     timer:cancel(Service#service.tref).

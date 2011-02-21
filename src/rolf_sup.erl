@@ -43,5 +43,6 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
+    % TODO should start
     RolfServer = ?CHILD(rolf_server, worker),
     {ok, {{one_for_one, 5, 10}, [RolfServer]}}.

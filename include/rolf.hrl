@@ -19,5 +19,5 @@
 %% You should have received a copy of the GNU General Public License
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
--record(server, {clients, services}).
--record(service, {name, cmd, freq, clients, tref}).
+-record(server, {clients=[], services=[]}).
+-record(service, {name=undef, cmd=undef, freq=undef, clients=[], tref=undef}).

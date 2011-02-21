@@ -4,25 +4,26 @@ Rolf
 - System monitoring and graphing tool like Munin or collectd.
 - Written in Erlang.
 - Asynchronous data gathering.
-- Sample frequency up to 1 second, configured per plug-in.
+- Sample frequency down to 1 second, configured per plug-in.
 - HTTP interface for HTML, graphs and data via JSON.
   - Dynamic graphs, no static HTML.
-- Compatible with Munin plug-in protocol.
+- Writing plug-ins is simple. Not quite as simple as Munin, because plug-ins are
+  kept resident between updates, as in collectd.
 - Runs anywhere Erlang runs (especially Windows).
 - Nodes being monitored are an Erlang cluster.
 
 Architecture
 ------------
 
-Nodes currently just provide data for a master process which collects, stores
-and serves data via HTTP to clients. Nodes could collect and store their own
-data, transferring it to the master for graphing etc. Initially the architecture
-is intentionally quite similar to Munin's.
+- A server is created on each machine.
+- Each server has many services, which are started when the server starts.
+- One or more clients subscribe to each server.
+- When a service generates an update, it sends it to all clients.
 
 Author
 ------
 
-Ben Godfrey, ben@ben2.com, http://aftnn.org/
+Ben Godfrey, ben@ben2.com, http://aftnn.org/.
 
 License
 -------
