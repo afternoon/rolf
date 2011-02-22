@@ -113,7 +113,7 @@ code_change(_OldVsn, Service, _Extra) ->
 
 %% @doc Get canonical name of service from name atom or service record.
 service_name(Name) when is_atom(Name) ->
-    list_to_atom(lists:concat([?MODULE, "_", atom_to_list(Name)]));
+    list_to_atom(string:join([?MODULE, atom_to_list(Name)], "_"));
 service_name(Service) ->
     service_name(Service#service.name).
 
@@ -125,7 +125,7 @@ send(Client, Results) ->
 %% @doc Invoke plug-in and return results.
 invoke(Plugin) ->
     error_logger:info_report({rolf_service, invoke, Plugin}),
-    Prog = lists:concat([?PLUGIN_DIR, "/", atom_to_list(Plugin)]),
+    Prog = string:join([?PLUGIN_DIR, atom_to_list(Plugin)], "/"),
     os:cmd(Prog).
 
 start_emitting(Service) ->
