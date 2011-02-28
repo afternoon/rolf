@@ -1,4 +1,4 @@
-%% @doc Server which provides monitoring information for a machine.
+%% @doc gen_server which manages monitoring services running on an Erlang node.
 %% @author Ben Godfrey <ben@ben2.com> [http://aftnn.org/]
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
@@ -19,7 +19,7 @@
 %% You should have received a copy of the GNU General Public License
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
--module(rolf_server).
+-module(rolf_node).
 -behaviour(gen_server).
 -export([
         % api
@@ -30,13 +30,13 @@
 -include("rolf.hrl").
 
 %% ===================================================================
-%% API functions
+%% API
 %% ===================================================================
 
-%% @doc Start a rolf server on this node, start all services.
+%% @doc Start a rolf node on this node, start all services.
 start() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-%% @doc Stop server and services.
+%% @doc Stop node and services.
 stop() -> gen_server:call(?MODULE, stop).
 
 %% @doc Add a subscription for Client to receive all updates.
@@ -49,52 +49,52 @@ unsubscribe(Client) -> gen_server:cast(?MODULE, {unsubscribe, Client}).
 get_state() -> gen_server:call(?MODULE, get_state).
 
 %% ===================================================================
-%% Server callbacks
+%% gen_server callbacks
 %% ===================================================================
 
 init([]) ->
-    error_logger:info_report({rolf_server, init}),
+    error_logger:info_report({rolf_node, init}),
     Services = find_services(),
     start_services(Services),
-    {ok, #server{clients=[], services=Services}}.
+    {ok, #node{clients=[], services=Services}}.
 
-handle_call(get_state, _From, Server) ->
-    error_logger:info_report({rolf_server, get_state, Server}),
-    {reply, Server, Server};
+handle_call(get_state, _From, State) ->
+    error_logger:info_report({rolf_node, get_state, State}),
+    {reply, State, State};
 
-handle_call(stop, _From, #server{services=Services} = Server) ->
-    error_logger:info_report({rolf_server, stop}),
+handle_call(stop, _From, #node{services=Services} = State) ->
+    error_logger:info_report({rolf_node, stop}),
     lists:foreach(fun(S) -> rolf_service:stop(S#service.name) end, Services),
-    {stop, normal, stopped, Server}.
+    {stop, normal, stopped, State}.
 
-handle_cast({subscribe, C}, #server{clients=Clients, services=Services} = Server) ->
-    error_logger:info_report({rolf_server, subscribe, C}),
+handle_cast({subscribe, C}, #node{clients=Clients, services=Services} = State) ->
+    error_logger:info_report({rolf_node, subscribe, C}),
     lists:foreach(fun(S) -> rolf_service:subscribe(S#service.name, C) end, Services),
-    {noreply, Server#server{clients=[C|Clients]}};
+    {noreply, State#node{clients=[C|Clients]}};
 
-handle_cast({unsubscribe, C}, #server{clients=Clients, services=Services} = Server) ->
-    error_logger:info_report({rolf_server, unsubscribe, C}),
+handle_cast({unsubscribe, C}, #node{clients=Clients, services=Services} = State) ->
+    error_logger:info_report({rolf_node, unsubscribe, C}),
     lists:foreach(fun(S) -> rolf_service:unsubscribe(S#service.name, C) end, Services),
-    {noreply, Server#server{clients=lists:delete(C, Clients)}}.
+    {noreply, State#node{clients=lists:delete(C, Clients)}}.
 
-handle_info(_Info, Ref) ->
-    {noreply, Ref}.
+handle_info(Info, State) ->
+    error_logger:info_report({rolf_node, handle_info, Info}),
+    {noreply, State}.
 
-terminate(_Reason, #server{services=Services}) ->
-    error_logger:info_report({rolf_server, terminate}),
+terminate(_Reason, #node{services=Services}) ->
+    error_logger:info_report({rolf_node, terminate}),
     lists:foreach(fun(S) -> rolf_service:stop(S#service.name) end, Services),
     ok.
 
-code_change(_OldVsn, Server, _Extra) ->
-    {ok, Server}.
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% ===================================================================
 %% Utility functions
 %% ===================================================================
 
-%% @doc List all services configured to run on this server.
+%% @doc List all services configured to run on this node.
 find_services() ->
-    error_logger:info_report({rolf_server, find_services}),
+    error_logger:info_report({rolf_node, find_services}),
     Freq = 5000,
     [#service{
         name=loadtime,
@@ -108,6 +108,6 @@ find_services() ->
 %% @doc Start an instance of the rolf_service gen_server for each service.
 start_services([]) -> ok;
 start_services([S|Services]) ->
-    error_logger:info_report({rolf_server, start_services, S}),
+    error_logger:info_report({rolf_node, start_services, S}),
     rolf_service:start(S),
     start_services(Services).

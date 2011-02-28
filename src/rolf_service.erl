@@ -35,7 +35,7 @@
 -define(PLUGIN_DIR, "plugin.d").
 
 %% ===================================================================
-%% API functions
+%% API
 %% ===================================================================
 
 %% @doc Start a service using Service as initial state.
@@ -98,14 +98,13 @@ handle_cast({publish}, Service) ->
     end,
     {noreply, Service}.
 
-handle_info(_Info, Ref) ->
+handle_info(Info, Ref) ->
+    error_logger:info_report({rolf_service, handle_info, Info}),
     {noreply, Ref}.
 
-terminate(_Reason, Service) ->
-    stop_emitting(Service).
+terminate(_Reason, Service) -> stop_emitting(Service).
 
-code_change(_OldVsn, Service, _Extra) ->
-    {ok, Service}.
+code_change(_OldVsn, Service, _Extra) -> {ok, Service}.
 
 %% ===================================================================
 %% Utility functions
