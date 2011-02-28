@@ -1,5 +1,5 @@
-%% @doc Server which provides monitoring information for a single service on a
-%% machine.
+%% @doc gen_server which provides monitoring information for a single service on
+%% a machine.
 %% @author Ben Godfrey <ben@ben2.com> [http://aftnn.org/]
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
@@ -32,7 +32,7 @@
         invoke/1, start_emitting/1, stop_emitting/1]).
 -include("rolf.hrl").
 
--define(PLUGIN_DIR, "plugin.d").
+-define(PLUGIN_DIR, filename:join("priv", "plugin.d")).
 
 %% ===================================================================
 %% API
@@ -57,7 +57,7 @@ publish(Name) -> gen_server:cast(service_name(Name), {publish}).
 get_state(Name) -> gen_server:call(service_name(Name), get_state).
 
 %% ===================================================================
-%% Server callbacks
+%% gen_server callbacks
 %% ===================================================================
 
 %% @doc Start service, create a timer which will poll for results regularly and
@@ -124,7 +124,7 @@ send(Client, Results) ->
 %% @doc Invoke plug-in and return results.
 invoke(Plugin) ->
     error_logger:info_report({rolf_service, invoke, Plugin}),
-    Prog = string:join([?PLUGIN_DIR, atom_to_list(Plugin)], "/"),
+    Prog = filename:join(?PLUGIN_DIR, atom_to_list(Plugin)),
     os:cmd(Prog).
 
 start_emitting(Service) ->

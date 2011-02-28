@@ -19,11 +19,14 @@
 %% You should have received a copy of the GNU General Public License
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+%% @doc State record for Rolf recorder.
+-record(recorder, {errdserver=undef}).
+
 %% @doc State record for Rolf nodes.
 -record(node, {clients=[], services=[]}).
 
 %% @doc State record for Rolf services.
 -record(service, {name=undef, cmd=undef, freq=undef, clients=[], tref=undef}).
 
-%% @doc State record for Rolf measurements
--record(measurement, {node=undef, service=undef, datetime=undef, value=undef}).
+%% @doc Record for Rolf samples.
+-record(sample, {node=undef, service=undef, datetime=undef, value=undef}).

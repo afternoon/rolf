@@ -1,4 +1,4 @@
-%% @doc gen_server to which services can send measurements for recording.
+%% @doc gen_server to which services can send samples for recording.
 %% @author Ben Godfrey <ben@ben2.com> [http://aftnn.org/]
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
@@ -31,26 +31,33 @@
         subscribe/1]).
 -include("rolf.hrl").
 
+-define(RRD_DIR, filename:join("priv", "data")).
+-define(RRD_EXT, ".rrd").
+
 %% ===================================================================
 %% API
 %% ===================================================================
 
-%% @doc Listen for measurement messages.
-store(Measurement) -> gen_server:call(?MODULE, {store, Measurement}).
+%% @doc Listen for sample messages.
+store(Sample) -> gen_server:call(?MODULE, {store, Sample}).
 
 %% ===================================================================
-%% Server callbacks
+%% gen_server callbacks
 %% ===================================================================
 
 init([]) ->
-    error_logger:info_report({rolf_recorder, init}).
+    error_logger:info_report({rolf_recorder, init}),
+    ErrdServer = errd_server:start_link(), % supervisor should do this?
+    {ok, #recorder{errdserver=ErrdServer}}.
 
 handle_call(get_state, _From, State) ->
     error_logger:info_report({rolf_recorder, get_state, State}),
     {reply, State, State};
 
-handle_call({store, Measurement}, _From, State) ->
-    error_logger:info_report({rolf_recorder, store, Measurement}),
+handle_call({store, Sample}, _From, State) ->
+    error_logger:info_report({rolf_recorder, store, Sample}),
+    ensure_rrd(State#recorder.errdserver, 'josie@josie', foo, foos, counter),
+    update_rrd(),
     {reply, ok, State}.
 
 handle_cast(Msg, State) ->
@@ -63,13 +70,44 @@ handle_info(Info, State) ->
 
 terminate(_Reason, _State) -> ok.
 
-code_change(_OldVsn, Server, _Extra) -> {ok, Server}.
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
+
+%% ===================================================================
+%% RRD management
+%% ===================================================================
+
+%% @doc Ensure data dir and RRD file for Service on Node exist.
+ensure_rrd(ErrdServer, NodeName, ServiceName, MetricName, Type) ->
+    ServiceDir = filename:join([?RRD_DIR, NodeName, ServiceName]),
+    case filelib:ensure_dir(ServiceDir) of
+        {error, Reason} -> {error, Reason};
+        ok ->
+            Filename = rrd_filename(ServiceDir, MetricName),
+            case filelib:is_file(Filename) of
+                false -> create_rrd(ErrdServer, Filename, MetricName, Type);
+                true -> ok
+            end
+    end.
+
+%% @doc Create name for RRD file for Service running on Node.
+rrd_filename(ServiceDir, MetricName) ->
+    filename:join(ServiceDir, string:join(MetricName, ?RRD_EXT)).
+
+%% @doc Create an RRD file using errd_server.
+create_rrd(ErrdServer, Filename, Name, Type) ->
+    Cmd = errd_command:create(Filename, Name, Type),
+    errd_server:command(ErrdServer, Cmd),
+    ok.
+
+%% @doc Update an RRD file with a new sample.
+update_rrd() ->
+    ok.
 
 %% ===================================================================
 %% Utility functions
 %% ===================================================================
 
-%% @doc Subscribe to measurement messages from Server.
+%% @doc Subscribe to sample messages from Server.
 subscribe(Node) ->
     error_logger:info_report({rolf_recorder, subscribe, Node}),
     rpc:call(Node, rolf_server, start, []),
