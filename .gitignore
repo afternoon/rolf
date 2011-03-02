@@ -2,3 +2,4 @@
 *.beam
 *.sw[op]
 deps
+tags

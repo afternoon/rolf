@@ -119,7 +119,7 @@ service_name(Service) ->
 %% @doc Send a set of results to a client.
 send(Client, Results) ->
     error_logger:info_report({rolf_service, send, Client, Results}),
-    Client ! {results, Results}.
+    rolf_recorder:store(Client, Results).
 
 %% @doc Invoke plug-in and return results.
 invoke(Plugin) ->
