@@ -23,7 +23,7 @@
 -behaviour(gen_server).
 -export([
         %api
-        store/1,
+        start/0, stop/0, store/1,
         % gen_server
         init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
         code_change/3,
@@ -38,8 +38,14 @@
 %% API
 %% ===================================================================
 
-%% @doc Listen for sample messages.
-store(Sample) -> gen_server:call(?MODULE, {store, Sample}).
+%% @doc Start a recorder on this node.
+start() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+%% @doc Stop recorder.
+stop() -> gen_server:call(?MODULE, stop).
+
+%% @doc Listen for samples.
+store(Samples) -> gen_server:call(?MODULE, {store, Samples}).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -54,8 +60,8 @@ handle_call(get_state, _From, State) ->
     error_logger:info_report({rolf_recorder, get_state, State}),
     {reply, State, State};
 
-handle_call({store, Sample}, _From, State) ->
-    error_logger:info_report({rolf_recorder, store, Sample}),
+handle_call({store, Samples}, _From, State) ->
+    error_logger:info_report({rolf_recorder, store, Samples}),
     ensure_rrd(State#recorder.errdserver, 'josie@josie', foo, foos, counter),
     update_rrd(),
     {reply, ok, State}.

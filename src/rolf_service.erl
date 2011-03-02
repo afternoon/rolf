@@ -60,7 +60,7 @@ get_state(Name) -> gen_server:call(service_name(Name), get_state).
 %% gen_server callbacks
 %% ===================================================================
 
-%% @doc Start service, create a timer which will poll for results regularly and
+%% @doc Start service, create a timer which will sample for results regularly and
 %% publish them to clients.
 init([Service]) ->
     error_logger:info_report({rolf_service, init, Service}),
@@ -93,8 +93,8 @@ handle_cast({publish}, Service) ->
             ok;
         _ -> 
             [M, F, A] = Service#service.cmd,
-            Results = apply(M, F, A),
-            lists:foreach(fun(C) -> send(C, Results) end, Clients)
+            Samples = apply(M, F, A),
+            lists:foreach(fun(C) -> send(Samples) end, Clients)
     end,
     {noreply, Service}.
 
@@ -116,12 +116,12 @@ service_name(Name) when is_atom(Name) ->
 service_name(Service) ->
     service_name(Service#service.name).
 
-%% @doc Send a set of results to a client.
-send(Client, Results) ->
-    error_logger:info_report({rolf_service, send, Client, Results}),
-    rolf_recorder:store(Client, Results).
+%% @doc Send a set of samples to a client.
+send(Samples) ->
+    error_logger:info_report({rolf_service, send, Samples}),
+    rolf_recorder:store(Samples).
 
-%% @doc Invoke plug-in and return results.
+%% @doc Invoke plug-in and return samples.
 invoke(Plugin) ->
     error_logger:info_report({rolf_service, invoke, Plugin}),
     Prog = filename:join(?PLUGIN_DIR, atom_to_list(Plugin)),
