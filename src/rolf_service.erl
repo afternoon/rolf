@@ -94,7 +94,7 @@ handle_cast({publish}, Service) ->
         _ -> 
             [M, F, A] = Service#service.cmd,
             Samples = apply(M, F, A),
-            lists:foreach(fun(_C) -> send(Samples) end, Clients)
+            lists:foreach(fun(C) -> send(C, Samples) end, Clients)
     end,
     {noreply, Service}.
 
@@ -117,7 +117,7 @@ service_name(Service) ->
     service_name(Service#service.name).
 
 %% @doc Send a set of samples to a client.
-send(Samples) ->
+send(_Client, Samples) ->
     error_logger:info_report({rolf_service, send, Samples}),
     rolf_recorder:store(Samples).
 
