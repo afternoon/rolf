@@ -17,8 +17,8 @@ Architecture
 
 - A server is created on each machine.
 - Each server has many services, which are started when the server starts.
-- One or more clients subscribe to each server.
-- When a service generates an update, it sends it to all clients.
+- One or more recorders subscribe to each server.
+- When a service generates an update, it sends it to all recorders.
 
 Author
 ------

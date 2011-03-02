@@ -44,11 +44,11 @@ start(Service) -> gen_server:start_link({local, service_name(Service)}, ?MODULE,
 %% @doc Stop service Name.
 stop(Name) -> gen_server:call(service_name(Name), stop).
 
-%% @doc Subscribe Client to updates from this service.
-subscribe(Name, Client) -> gen_server:cast(service_name(Name), {subscribe, Client}).
+%% @doc Subscribe Recorder to updates from this service.
+subscribe(Name, Recorder) -> gen_server:cast(service_name(Name), {subscribe, Recorder}).
 
-%% @doc Unsubscribe Client from updates from this service.
-unsubscribe(Name, Client) -> gen_server:cast(service_name(Name), {unsubscribe, Client}).
+%% @doc Unsubscribe Recorder from updates from this service.
+unsubscribe(Name, Recorder) -> gen_server:cast(service_name(Name), {unsubscribe, Recorder}).
 
 %% @doc Trigger polling of this service manually, useful for inspecting and debugging
 publish(Name) -> gen_server:cast(service_name(Name), {publish}).
@@ -61,7 +61,7 @@ get_state(Name) -> gen_server:call(service_name(Name), get_state).
 %% ===================================================================
 
 %% @doc Start service, create a timer which will sample for results regularly and
-%% publish them to clients.
+%% publish them to recorders.
 init([Service]) ->
     error_logger:info_report({rolf_service, init, Service}),
     start_emitting(Service),
@@ -74,27 +74,27 @@ handle_call(stop, _From, Service) ->
     error_logger:info_report({rolf_service, stop}),
     {stop, normal, stopped, Service}.
 
-handle_cast({subscribe, C}, #service{clients=Clients} = Service) ->
-    error_logger:info_report({rolf_service, subscribe, C}),
-    case (lists:member(C, Clients)) of
+handle_cast({subscribe, R}, #service{recorders=Rs} = Service) ->
+    error_logger:info_report({rolf_service, subscribe, R}),
+    case (lists:member(R, Rs)) of
         true -> {noreply, Service};
-        false -> {noreply, Service#service{clients=[C|Clients]}}
+        false -> {noreply, Service#service{recorders=[R|Rs]}}
     end;
 
-handle_cast({unsubscribe, C}, #service{clients=Clients} = Service) ->
-    error_logger:info_report({rolf_service, unsubscribe, C}),
-    {noreply, Service#service{clients=lists:delete(C, Clients)}};
+handle_cast({unsubscribe, R}, #service{recorders=Rs} = Service) ->
+    error_logger:info_report({rolf_service, unsubscribe, R}),
+    {noreply, Service#service{recorders=lists:delete(R, Rs)}};
 
 handle_cast({publish}, Service) ->
-    Clients = Service#service.clients,
-    error_logger:info_report({rolf_service, publish, Clients}),
-    case (Clients) of
+    Recorders = Service#service.recorders,
+    error_logger:info_report({rolf_service, publish, Recorders}),
+    case (Recorders) of
         [] ->
             ok;
         _ -> 
             [M, F, A] = Service#service.cmd,
             Samples = apply(M, F, A),
-            lists:foreach(fun(C) -> send(C, Samples) end, Clients)
+            lists:foreach(fun(R) -> send(R, Samples) end, Recorders)
     end,
     {noreply, Service}.
 

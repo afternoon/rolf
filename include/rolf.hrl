@@ -23,10 +23,10 @@
 -record(recorder, {errdserver=undef}).
 
 %% @doc State record for Rolf nodes.
--record(node, {clients=[], services=[]}).
+-record(node, {recorders=[], services=[]}).
 
 %% @doc State record for Rolf services.
--record(service, {name=undef, cmd=undef, freq=undef, clients=[], tref=undef}).
+-record(service, {name=undef, cmd=undef, freq=undef, recorders=[], tref=undef}).
 
 %% @doc Record for Rolf samples.
 -record(sample, {node=undef, service=undef, datetime=undef, value=undef}).
