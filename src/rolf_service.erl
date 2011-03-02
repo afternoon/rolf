@@ -94,7 +94,7 @@ handle_cast({publish}, Service) ->
         _ -> 
             [M, F, A] = Service#service.cmd,
             Samples = apply(M, F, A),
-            lists:foreach(fun(C) -> send(Samples) end, Clients)
+            lists:foreach(fun(_C) -> send(Samples) end, Clients)
     end,
     {noreply, Service}.
 
