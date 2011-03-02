@@ -29,6 +29,7 @@ License
 -------
 
 Rolf - a system monitoring and graphing tool like Munin or collectd.
+
 Copyright (C) 2011 Ben Godfrey.
 
 This program is free software: you can redistribute it and/or modify

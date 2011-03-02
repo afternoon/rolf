@@ -44,8 +44,8 @@ start() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 %% @doc Stop recorder.
 stop() -> gen_server:call(?MODULE, stop).
 
-%% @doc Listen for samples.
-store(Samples) -> gen_server:call(?MODULE, {store, Samples}).
+%% @doc Pass samples to all recorders in the cluster.
+store(Samples) -> gen_server:abcast(?MODULE, {store, Samples}).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -58,13 +58,13 @@ init([]) ->
 
 handle_call(get_state, _From, State) ->
     error_logger:info_report({rolf_recorder, get_state, State}),
-    {reply, State, State};
+    {reply, State, State}.
 
-handle_call({store, Samples}, _From, State) ->
+handle_cast({store, Samples}, State) ->
     error_logger:info_report({rolf_recorder, store, Samples}),
     ensure_rrd(State#recorder.errdserver, 'josie@josie', foo, foos, counter),
     update_rrd(),
-    {reply, ok, State}.
+    {noreply, State};
 
 handle_cast(Msg, State) ->
     error_logger:info_report({rolf_recorder, handle_cast, Msg}),
@@ -77,37 +77,6 @@ handle_info(Info, State) ->
 terminate(_Reason, _State) -> ok.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
-%% ===================================================================
-%% RRD management
-%% ===================================================================
-
-%% @doc Ensure data dir and RRD file for Service on Node exist.
-ensure_rrd(ErrdServer, NodeName, ServiceName, MetricName, Type) ->
-    ServiceDir = filename:join([?RRD_DIR, NodeName, ServiceName]),
-    case filelib:ensure_dir(ServiceDir) of
-        {error, Reason} -> {error, Reason};
-        ok ->
-            Filename = rrd_filename(ServiceDir, MetricName),
-            case filelib:is_file(Filename) of
-                false -> create_rrd(ErrdServer, Filename, MetricName, Type);
-                true -> ok
-            end
-    end.
-
-%% @doc Create name for RRD file for Service running on Node.
-rrd_filename(ServiceDir, MetricName) ->
-    filename:join(ServiceDir, string:join(MetricName, ?RRD_EXT)).
-
-%% @doc Create an RRD file using errd_server.
-create_rrd(ErrdServer, Filename, Name, Type) ->
-    Cmd = errd_command:create(Filename, Name, Type),
-    errd_server:command(ErrdServer, Cmd),
-    ok.
-
-%% @doc Update an RRD file with a new sample.
-update_rrd() ->
-    ok.
 
 %% ===================================================================
 %% Utility functions
