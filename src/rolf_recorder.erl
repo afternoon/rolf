@@ -31,9 +31,6 @@
         subscribe/1]).
 -include("rolf.hrl").
 
--define(RRD_DIR, filename:join("priv", "data")).
--define(RRD_EXT, ".rrd").
-
 %% ===================================================================
 %% API
 %% ===================================================================
@@ -62,8 +59,8 @@ handle_call(get_state, _From, State) ->
 
 handle_cast({store, Samples}, State) ->
     error_logger:info_report({rolf_recorder, store, Samples}),
-    ensure_rrd(State#recorder.errdserver, 'josie@josie', foo, foos, counter),
-    update_rrd(),
+    ErrdServer = State#recorder.errdserver,
+    lists:foreach(fun(S) -> rolf_rrd_utils:update_rrd(ErrdServer, S) end, Samples),
     {noreply, State};
 
 handle_cast(Msg, State) ->

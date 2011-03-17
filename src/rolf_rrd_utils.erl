@@ -20,8 +20,11 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_rrd_utils).
--export([ensure_rrd/5, update_rrd/1]).
+-export([update_rrd/2]).
 -include("rolf.hrl").
+
+-define(RRD_DIR, filename:join("priv", "data")).
+-define(RRD_EXT, "rrd").
 
 %% @doc Ensure data dir and RRD file for Service on Node exist.
 ensure_rrd(ErrdServer, NodeName, ServiceName, MetricName, Type) ->
@@ -38,14 +41,19 @@ ensure_rrd(ErrdServer, NodeName, ServiceName, MetricName, Type) ->
 
 %% @doc Create name for RRD file for Service running on Node.
 rrd_filename(ServiceDir, MetricName) ->
-    filename:join(ServiceDir, string:join(MetricName, ?RRD_EXT)).
+    filename:join(ServiceDir, string:join([atom_to_list(MetricName), ?RRD_EXT], ".")).
 
 %% @doc Create an RRD file using errd_server.
-create_rrd(ErrdServer, Filename, Name, Type) ->
+create_rrd(ErrdServer, Filename, Name, Type)
+        when Type == gauge; Type == counter; Type == derive; Type == absolute ->
     Cmd = errd_command:create(Filename, Name, Type),
+    error_logger:info_report({rolf_rrd_utils, create_rrd, cmd, Cmd}),
     errd_server:command(ErrdServer, Cmd),
     ok.
 
 %% @doc Update an RRD file with a new sample.
-update_rrd(Sample) ->
+update_rrd(ErrdServer, #sample{node=Node, service=Service, datetime=_DateTime,
+        value=_Value}) ->
+    NodeName = atom_to_list(Node),
+    ensure_rrd(ErrdServer, NodeName, Service, foos, gauge),
     ok.
