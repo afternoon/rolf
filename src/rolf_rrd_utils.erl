@@ -28,11 +28,12 @@
 
 %% @doc Ensure data dir and RRD file for Service on Node exist.
 ensure_rrd(ErrdServer, NodeName, ServiceName, MetricName, Type) ->
-    ServiceDir = filename:join([?RRD_DIR, NodeName, ServiceName]),
-    case filelib:ensure_dir(ServiceDir) of
+    Dir = filename:join([?RRD_DIR, NodeName, ServiceName]),
+    error_logger:info_report({rolf_rrd_utils, ensure_rrd, dir, Dir}),
+    case filelib:ensure_dir(Dir ++ "/") of
         {error, Reason} -> {error, Reason};
         ok ->
-            Filename = rrd_filename(ServiceDir, MetricName),
+            Filename = rrd_filename(Dir, MetricName),
             case filelib:is_file(Filename) of
                 false -> create_rrd(ErrdServer, Filename, MetricName, Type);
                 true -> ok
@@ -40,8 +41,8 @@ ensure_rrd(ErrdServer, NodeName, ServiceName, MetricName, Type) ->
     end.
 
 %% @doc Create name for RRD file for Service running on Node.
-rrd_filename(ServiceDir, MetricName) ->
-    filename:join(ServiceDir, string:join([atom_to_list(MetricName), ?RRD_EXT], ".")).
+rrd_filename(Dir, MetricName) ->
+    filename:join(Dir, string:join([atom_to_list(MetricName), ?RRD_EXT], ".")).
 
 %% @doc Create an RRD file using errd_server.
 create_rrd(ErrdServer, Filename, Name, Type)
