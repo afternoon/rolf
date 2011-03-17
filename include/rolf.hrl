@@ -29,4 +29,4 @@
 -record(service, {name=undef, cmd=undef, freq=undef, recorders=[], tref=undef}).
 
 %% @doc Record for Rolf samples.
--record(sample, {node=undef, service=undef, datetime=undef, value=undef}).
+-record(sample, {nodename=undef, service=undef, datetime=undef, value=undef}).

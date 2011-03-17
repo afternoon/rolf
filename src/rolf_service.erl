@@ -29,7 +29,7 @@
         init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
         code_change/3,
         % utils
-        invoke/1, start_emitting/1, stop_emitting/1]).
+        invoke/2, start_emitting/1, stop_emitting/1]).
 -include("rolf.hrl").
 
 -define(PLUGIN_DIR, filename:join("priv", "plugin.d")).
@@ -91,10 +91,10 @@ handle_cast({publish}, Service) ->
     case (Recorders) of
         [] ->
             ok;
-        _ -> 
+        _ ->
             [M, F, A] = Service#service.cmd,
-            Samples = apply(M, F, A),
-            lists:foreach(fun(R) -> send(R, Samples) end, Recorders)
+            Samples = apply(M, F, [Service|A]),
+            lists:foreach(fun(_R) -> send(Samples) end, Recorders)
     end,
     {noreply, Service}.
 
@@ -117,15 +117,20 @@ service_name(Service) ->
     service_name(Service#service.name).
 
 %% @doc Send a set of samples to a client.
-send(_Client, Samples) ->
+send(Samples) ->
     error_logger:info_report({rolf_service, send, Samples}),
     rolf_recorder:store(Samples).
 
 %% @doc Invoke plug-in and return samples.
-invoke(Plugin) ->
+invoke(Service, Plugin) ->
     error_logger:info_report({rolf_service, invoke, Plugin}),
     Prog = filename:join(?PLUGIN_DIR, atom_to_list(Plugin)),
-    os:cmd(Prog).
+    parse_output(Service, os:cmd(Prog)).
+
+parse_output(#service{name=Name}, Output) ->
+    error_logger:info_report({parse_output, Name, Output}),
+    #sample{nodename=atom_to_list(node()), service=Name,
+        datetime=erlang:universaltime(), value=0}.
 
 start_emitting(Service) ->
     error_logger:info_report({rolf_service, start_emitting}),

@@ -53,8 +53,7 @@ create_rrd(ErrdServer, Filename, Name, Type)
     ok.
 
 %% @doc Update an RRD file with a new sample.
-update_rrd(ErrdServer, #sample{node=Node, service=Service, datetime=_DateTime,
+update_rrd(ErrdServer, #sample{nodename=NodeName, service=Service, datetime=_DateTime,
         value=_Value}) ->
-    NodeName = atom_to_list(Node),
     ensure_rrd(ErrdServer, NodeName, Service, foos, gauge),
     ok.
