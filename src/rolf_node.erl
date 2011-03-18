@@ -62,17 +62,17 @@ handle_call(get_state, _From, State) ->
     error_logger:info_report({rolf_node, get_state, State}),
     {reply, State, State};
 
-handle_call(stop, _From, #node{services=Services} = State) ->
+handle_call(stop, _From, #node{services=Services}=State) ->
     error_logger:info_report({rolf_node, stop}),
     lists:foreach(fun(S) -> rolf_service:stop(S#service.name) end, Services),
     {stop, normal, stopped, State}.
 
-handle_cast({subscribe, R}, #node{recorders=Rs, services=Services} = State) ->
+handle_cast({subscribe, R}, #node{recorders=Rs, services=Services}=State) ->
     error_logger:info_report({rolf_node, subscribe, R}),
     lists:foreach(fun(S) -> rolf_service:subscribe(S#service.name, R) end, Services),
     {noreply, State#node{recorders=[R|Rs]}};
 
-handle_cast({unsubscribe, R}, #node{recorders=Rs, services=Services} = State) ->
+handle_cast({unsubscribe, R}, #node{recorders=Rs, services=Services}=State) ->
     error_logger:info_report({rolf_node, unsubscribe, R}),
     lists:foreach(fun(S) -> rolf_service:unsubscribe(S#service.name, R) end, Services),
     {noreply, State#node{recorders=lists:delete(R, Rs)}}.

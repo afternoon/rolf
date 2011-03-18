@@ -57,9 +57,8 @@ handle_call(get_state, _From, State) ->
     error_logger:info_report({rolf_recorder, get_state, State}),
     {reply, State, State}.
 
-handle_cast({store, Samples}, State) ->
+handle_cast({store, Samples}, #recorder{rrd=RRD}=State) ->
     error_logger:info_report({rolf_recorder, store, Samples}),
-    RRD = State#recorder.rrd,
     lists:foreach(fun(S) -> rolf_rrd:update(RRD, S) end, Samples),
     {noreply, State};
 

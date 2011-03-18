@@ -74,14 +74,14 @@ handle_call(stop, _From, Service) ->
     error_logger:info_report({rolf_service, stop}),
     {stop, normal, stopped, Service}.
 
-handle_cast({subscribe, R}, #service{recorders=Rs} = Service) ->
+handle_cast({subscribe, R}, #service{recorders=Rs}=Service) ->
     error_logger:info_report({rolf_service, subscribe, R}),
     case (lists:member(R, Rs)) of
         true -> {noreply, Service};
         false -> {noreply, Service#service{recorders=[R|Rs]}}
     end;
 
-handle_cast({unsubscribe, R}, #service{recorders=Rs} = Service) ->
+handle_cast({unsubscribe, R}, #service{recorders=Rs}=Service) ->
     error_logger:info_report({rolf_service, unsubscribe, R}),
     {noreply, Service#service{recorders=lists:delete(R, Rs)}};
 
