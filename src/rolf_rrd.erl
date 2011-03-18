@@ -19,23 +19,23 @@
 %% You should have received a copy of the GNU General Public License
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
--module(rolf_rrd_utils).
--export([update_rrd/2]).
+-module(rolf_rrd).
+-export([update/2]).
 -include("rolf.hrl").
 
 -define(RRD_DIR, filename:join("priv", "data")).
 -define(RRD_EXT, "rrd").
 
 %% @doc Ensure data dir and RRD file for Service on Node exist.
-ensure_rrd(ErrdServer, NodeName, ServiceName, MetricName, Type) ->
+ensure(RRD, NodeName, ServiceName, MetricName, Type) ->
     Dir = filename:join([?RRD_DIR, NodeName, ServiceName]),
-    error_logger:info_report({rolf_rrd_utils, ensure_rrd, dir, Dir}),
+    error_logger:info_report({rolf_rrd, ensure, dir, Dir}),
     case filelib:ensure_dir(Dir ++ "/") of
         {error, Reason} -> {error, Reason};
         ok ->
             Filename = rrd_filename(Dir, MetricName),
             case filelib:is_file(Filename) of
-                false -> create_rrd(ErrdServer, Filename, MetricName, Type);
+                false -> create(RRD, Filename, MetricName, Type);
                 true -> ok
             end
     end.
@@ -45,15 +45,15 @@ rrd_filename(Dir, MetricName) ->
     filename:join(Dir, string:join([atom_to_list(MetricName), ?RRD_EXT], ".")).
 
 %% @doc Create an RRD file using errd_server.
-create_rrd(ErrdServer, Filename, Name, Type)
+create(RRD, Filename, Name, Type)
         when Type == gauge; Type == counter; Type == derive; Type == absolute ->
     Cmd = errd_command:create(Filename, Name, Type),
-    error_logger:info_report({rolf_rrd_utils, create_rrd, cmd, Cmd}),
-    errd_server:command(ErrdServer, Cmd),
+    error_logger:info_report({rolf_rrd, create, cmd, Cmd}),
+    errd_server:command(RRD, Cmd),
     ok.
 
 %% @doc Update an RRD file with a new sample.
-update_rrd(ErrdServer, #sample{nodename=NodeName, service=Service, datetime=_DateTime,
+update(RRD, #sample{nodename=NodeName, service=Service, datetime=_DateTime,
         value=_Value}) ->
-    ensure_rrd(ErrdServer, NodeName, Service, foos, gauge),
+    ensure(RRD, NodeName, Service, foos, gauge),
     ok.

@@ -20,7 +20,7 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 %% @doc State record for Rolf recorder.
--record(recorder, {errdserver=undef}).
+-record(recorder, {rrd=undef}).
 
 %% @doc State record for Rolf nodes.
 -record(node, {recorders=[], services=[]}).

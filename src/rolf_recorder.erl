@@ -50,8 +50,8 @@ store(Samples) -> gen_server:abcast(?MODULE, {store, Samples}).
 
 init([]) ->
     error_logger:info_report({rolf_recorder, init}),
-    ErrdServer = errd_server:start_link(), % supervisor should do this?
-    {ok, #recorder{errdserver=ErrdServer}}.
+    RRD = errd_server:start_link(), % supervisor should do this?
+    {ok, #recorder{rrd=RRD}}.
 
 handle_call(get_state, _From, State) ->
     error_logger:info_report({rolf_recorder, get_state, State}),
@@ -59,8 +59,8 @@ handle_call(get_state, _From, State) ->
 
 handle_cast({store, Samples}, State) ->
     error_logger:info_report({rolf_recorder, store, Samples}),
-    ErrdServer = State#recorder.errdserver,
-    lists:foreach(fun(S) -> rolf_rrd_utils:update_rrd(ErrdServer, S) end, Samples),
+    RRD = State#recorder.rrd,
+    lists:foreach(fun(S) -> rolf_rrd:update(RRD, S) end, Samples),
     {noreply, State};
 
 handle_cast(Msg, State) ->
