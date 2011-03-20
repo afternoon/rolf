@@ -3,7 +3,7 @@
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
 %%
-%% Rolf - a system monitoring and graphing tool like Munin or collectd.
+%% Rolf - a monitoring and graphing tool like Munin or collectd.
 %% Copyright (C) 2011 Ben Godfrey.
 %%
 %% This program is free software: you can redistribute it and/or modify
@@ -23,12 +23,11 @@
 -behaviour(gen_server).
 -export([
         %api
-        start/0, stop/0, store/1,
+        start_link/0, stop/0, store/1,
         % gen_server
         init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-        code_change/3,
-        % utils
-        subscribe/1]).
+        code_change/3]).
+
 -include("rolf.hrl").
 
 %% ===================================================================
@@ -36,7 +35,7 @@
 %% ===================================================================
 
 %% @doc Start a recorder on this node.
-start() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Stop recorder.
 stop() -> gen_server:call(?MODULE, stop).
@@ -50,8 +49,19 @@ store(Samples) -> gen_server:abcast(?MODULE, {store, Samples}).
 
 init([]) ->
     error_logger:info_report({rolf_recorder, init}),
-    RRD = errd_server:start_link(), % supervisor should do this?
-    {ok, #recorder{rrd=RRD}}.
+
+    % start errd server and rolf_node servers on the cluster
+    % TODO supervisor should do these bits?
+    case errd_server:start_link() of
+        {ok, RRD} ->
+            Nodes = [node()|nodes(connected)],
+            error_logger:info_report({rolf_recorder, nodes, Nodes}),
+            rpc:multicall(Nodes, rolf_node, start_link, []),
+            {ok, #recorder{rrd=RRD}};
+        {stop, Reason} ->
+            error_logger:error_report({rolf_recorder, Reason})
+    end.
+
 
 handle_call(get_state, _From, State) ->
     error_logger:info_report({rolf_recorder, get_state, State}),
@@ -73,13 +83,3 @@ handle_info(Info, State) ->
 terminate(_Reason, _State) -> ok.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
-
-%% ===================================================================
-%% Utility functions
-%% ===================================================================
-
-%% @doc Subscribe to sample messages from Server.
-subscribe(Node) ->
-    error_logger:info_report({rolf_recorder, subscribe, Node}),
-    rpc:call(Node, rolf_server, start, []),
-    rpc:call(Node, rolf_server, subscribe, [self()]).

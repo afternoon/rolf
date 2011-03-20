@@ -3,7 +3,7 @@
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
 %%
-%% Rolf - a system monitoring and graphing tool like Munin or collectd.
+%% Rolf - a monitoring and graphing tool like Munin or collectd.
 %% Copyright (C) 2011 Ben Godfrey.
 %%
 %% This program is free software: you can redistribute it and/or modify

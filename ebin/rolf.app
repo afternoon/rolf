@@ -5,5 +5,5 @@
               {applications,[kernel,stdlib]},
               {mod,{rolf_app,[]}},
               {env,[]},
-              {modules,[rolf_app,rolf_node,rolf_recorder,rolf_rrd,
-                        rolf_service,rolf_sup]}]}.
+              {modules,[rolf_app,rolf_client,rolf_node,rolf_recorder,rolf_rrd,
+                        rolf_rrd_utils,rolf_service,rolf_sup]}]}.

@@ -3,3 +3,4 @@
 *.sw[nop]
 deps
 tags
+priv/data

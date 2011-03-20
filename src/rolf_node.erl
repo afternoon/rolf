@@ -3,7 +3,7 @@
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
 %%
-%% Rolf - a system monitoring and graphing tool like Munin or collectd.
+%% Rolf - a monitoring and graphing tool like Munin or collectd.
 %% Copyright (C) 2011 Ben Godfrey.
 %%
 %% This program is free software: you can redistribute it and/or modify
@@ -23,10 +23,11 @@
 -behaviour(gen_server).
 -export([
         % api
-        start/0, stop/0, subscribe/1, unsubscribe/1, get_state/0,
+        start_link/0, stop/0, get_state/0,
         % gen_server
         init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
         code_change/3]).
+
 -include("rolf.hrl").
 
 %% ===================================================================
@@ -34,16 +35,10 @@
 %% ===================================================================
 
 %% @doc Start a rolf node on this node, start all services.
-start() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Stop node and services.
 stop() -> gen_server:call(?MODULE, stop).
-
-%% @doc Add a subscription for Client to receive all updates.
-subscribe(Client) -> gen_server:cast(?MODULE, {subscribe, Client}).
-
-%% @doc Remove subscription for client.
-unsubscribe(Client) -> gen_server:cast(?MODULE, {unsubscribe, Client}).
 
 %% @doc Get internal state - for debugging.
 get_state() -> gen_server:call(?MODULE, get_state).
@@ -53,36 +48,30 @@ get_state() -> gen_server:call(?MODULE, get_state).
 %% ===================================================================
 
 init([]) ->
-    error_logger:info_report({rolf_node, init}),
+    error_logger:info_report({rolf_node, node(), init}),
     Services = find_services(),
     start_services(Services),
-    {ok, #node{recorders=[], services=Services}}.
+    {ok, #node{services=Services}}.
 
 handle_call(get_state, _From, State) ->
-    error_logger:info_report({rolf_node, get_state, State}),
+    error_logger:info_report({rolf_node, node(), get_state, State}),
     {reply, State, State};
 
 handle_call(stop, _From, #node{services=Services}=State) ->
-    error_logger:info_report({rolf_node, stop}),
+    error_logger:info_report({rolf_node, node(), stop}),
     lists:foreach(fun(S) -> rolf_service:stop(S#service.name) end, Services),
     {stop, normal, stopped, State}.
 
-handle_cast({subscribe, R}, #node{recorders=Rs, services=Services}=State) ->
-    error_logger:info_report({rolf_node, subscribe, R}),
-    lists:foreach(fun(S) -> rolf_service:subscribe(S#service.name, R) end, Services),
-    {noreply, State#node{recorders=[R|Rs]}};
-
-handle_cast({unsubscribe, R}, #node{recorders=Rs, services=Services}=State) ->
-    error_logger:info_report({rolf_node, unsubscribe, R}),
-    lists:foreach(fun(S) -> rolf_service:unsubscribe(S#service.name, R) end, Services),
-    {noreply, State#node{recorders=lists:delete(R, Rs)}}.
+handle_cast(Msg, State) ->
+    error_logger:info_report({rolf_recorder, handle_cast, Msg}),
+    {noreply, State}.
 
 handle_info(Info, State) ->
-    error_logger:info_report({rolf_node, handle_info, Info}),
+    error_logger:info_report({rolf_node, node(), handle_info, Info}),
     {noreply, State}.
 
 terminate(_Reason, #node{services=Services}) ->
-    error_logger:info_report({rolf_node, terminate}),
+    error_logger:info_report({rolf_node, node(), terminate}),
     lists:foreach(fun(S) -> rolf_service:stop(S#service.name) end, Services),
     ok.
 
@@ -94,8 +83,8 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% @doc List all services configured to run on this node.
 find_services() ->
-    error_logger:info_report({rolf_node, find_services}),
-    Freq = 5000,
+    error_logger:info_report({rolf_node, node(), find_services}),
+    Freq = 10000,
     [#service{
         name=loadtime,
         cmd=[rolf_service, invoke, [loadtime]],
@@ -108,6 +97,7 @@ find_services() ->
 %% @doc Start an instance of the rolf_service gen_server for each service.
 start_services([]) -> ok;
 start_services([S|Services]) ->
-    error_logger:info_report({rolf_node, start_services, S}),
-    rolf_service:start(S),
+    error_logger:info_report({rolf_node, node(), start_services, S}),
+    Result = rolf_service:start_link(S),
+    error_logger:info_report({rolf_node, node(), start_services, Result}),
     start_services(Services).

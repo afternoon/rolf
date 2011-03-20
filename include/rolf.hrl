@@ -3,7 +3,7 @@
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
 %%
-%% Rolf - a system monitoring and graphing tool like Munin or collectd.
+%% Rolf - a monitoring and graphing tool like Munin or collectd.
 %% Copyright (C) 2011 Ben Godfrey.
 %%
 %% This program is free software: you can redistribute it and/or modify
@@ -20,13 +20,14 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 %% @doc State record for Rolf recorder.
--record(recorder, {rrd=undef}).
+-record(recorder, {rrd=undefined}).
 
 %% @doc State record for Rolf nodes.
--record(node, {recorders=[], services=[]}).
+-record(node, {services=[]}).
 
 %% @doc State record for Rolf services.
--record(service, {name=undef, cmd=undef, freq=undef, recorders=[], tref=undef}).
+-record(service, {name=undefined, cmd=undefined, freq=undefined, tref=undefined}).
 
-%% @doc Record for Rolf samples.
--record(sample, {nodename=undef, service=undef, datetime=undef, value=undef}).
+%% @doc Record for Rolf samples. values is a list of tuples of format
+%% {Metric, Value}
+-record(sample, {nodename=undefined, service=undefined, values=undefined}).
