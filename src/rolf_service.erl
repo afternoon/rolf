@@ -105,10 +105,26 @@ invoke(Service, Plugin) ->
     Prog = filename:join(?PLUGIN_DIR, atom_to_list(Plugin)),
     parse_output(Service, os:cmd(Prog)).
 
+%% @doc Coerce a string to a float or an integer.
+list_to_num(S) ->
+    try list_to_float(S) catch
+        error:badarg ->
+            try list_to_integer(S) catch
+                error:badarg -> error
+            end
+    end.
+
+%% @doc Parse the name of a metric, e.g. "loadtime.value" becomes the atom
+%% loadtime.
+parse_name(S) ->
+    list_to_atom(hd(string:tokens(S, "."))).
+
 parse_output(#service{name=Name}, Output) ->
     error_logger:info_report({parse_output, Name, Output}),
     % TODO actually parse the output
-    Values = [{loadtime, 1}],
+    Lines = string:tokens(Output, "\n"),
+    Pairs = lists:map(fun(P) -> list_to_tuple(string:tokens(P, " ")) end, Lines),
+    Values = lists:map(fun({K, V}) -> {parse_name(K), list_to_num(V)} end, Pairs),
     [#sample{nodename=node(), service=Name, values=Values}].
 
 start_emitting(Service) ->
