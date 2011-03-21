@@ -87,12 +87,12 @@ find_services() ->
     Freq = 10000,
     [#service{
         name=loadtime,
-        cmd=[rolf_service, invoke, [loadtime]],
-        freq=Freq},
+        mfa=[rolf_service, invoke, ["priv/plugin.d/loadtime/loadtime.sh", []]],
+        frequency=Freq},
      #service{
         name=disk,
-        cmd=[rolf_service, invoke, [disk]],
-        freq=Freq}].
+        mfa=[rolf_service, invoke, ["priv/plugin.d/disk/disk.sh", []]],
+        frequency=Freq}].
 
 %% @doc Start an instance of the rolf_service gen_server for each service.
 start_services([]) -> ok;

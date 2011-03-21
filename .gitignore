@@ -4,3 +4,4 @@
 deps
 tags
 priv/data
+.eunit

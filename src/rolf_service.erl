@@ -29,11 +29,9 @@
         init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
         code_change/3,
         % utils
-        invoke/2, start_emitting/1, stop_emitting/1]).
+        invoke/3, start_emitting/1, stop_emitting/1]).
 
 -include("rolf.hrl").
-
--define(PLUGIN_DIR, filename:join("priv", "plugin.d")).
 
 %% ===================================================================
 %% API
@@ -71,7 +69,7 @@ handle_call(stop, _From, Service) ->
     {stop, normal, stopped, Service}.
 
 handle_cast(publish, Service) ->
-    [M, F, A] = Service#service.cmd,
+    [M, F, A] = Service#service.mfa,
     Samples = apply(M, F, [Service|A]),
     send(Samples),
     {noreply, Service}.
@@ -100,10 +98,9 @@ send(Samples) ->
     rolf_recorder:store(Samples).
 
 %% @doc Invoke plug-in and return samples.
-invoke(Service, Plugin) ->
-    error_logger:info_report({rolf_service, node(), invoke, Plugin}),
-    Prog = filename:join(?PLUGIN_DIR, atom_to_list(Plugin)),
-    parse_output(Service, os:cmd(Prog)).
+invoke(Service, Cmd, Args) ->
+    error_logger:info_report({rolf_service, node(), invoke, Cmd, Args}),
+    parse_output(Service, os:cmd(string:join([Cmd, Service#service.name, Args], " "))).
 
 %% @doc Coerce a string to a float or an integer.
 list_to_num(S) ->
@@ -114,23 +111,20 @@ list_to_num(S) ->
             end
     end.
 
-%% @doc Parse the name of a metric, e.g. "loadtime.value" becomes the atom
-%% loadtime.
-parse_name(S) ->
-    list_to_atom(hd(string:tokens(S, "."))).
-
-parse_output(#service{name=Name}, Output) ->
+%% @doc Parse output from external command.
+parse_output(Service, Output) ->
+    Name = Service#service.name,
     error_logger:info_report({parse_output, Name, Output}),
     % TODO actually parse the output
     Lines = string:tokens(Output, "\n"),
     Pairs = lists:map(fun(P) -> list_to_tuple(string:tokens(P, " ")) end, Lines),
-    Values = lists:map(fun({K, V}) -> {parse_name(K), list_to_num(V)} end, Pairs),
+    Values = lists:map(fun({K, V}) -> {K, list_to_num(V)} end, Pairs),
     [#sample{nodename=node(), service=Name, values=Values}].
 
 start_emitting(Service) ->
     error_logger:info_report({rolf_service, node(), start_emitting}),
     Name = Service#service.name,
-    Freq = Service#service.freq,
+    Freq = Service#service.frequency,
     case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
         {ok, TRef} ->
             {ok, Service#service{tref=TRef}};

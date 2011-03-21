@@ -25,8 +25,14 @@
 %% @doc State record for Rolf nodes.
 -record(node, {services=[]}).
 
-%% @doc State record for Rolf services.
--record(service, {name=undefined, cmd=undefined, freq=undefined, tref=undefined}).
+%% @doc State record for Rolf services, which contains multiple metrics.
+-record(service, {name=undefined, mfa=undefined, frequency=undefined,
+                  title=undefined, vlabel=undefined, metrics=undefined,
+                  tref=undefined}).
+
+%% @doc Record for a single metric.
+-record(metric, {name=undefined, label="", type=gauge, draw=line, min=undefined,
+                 max=undefined, colour=undefined}).
 
 %% @doc Record for Rolf samples. values is a list of tuples of format
 %% {Metric, Value}
