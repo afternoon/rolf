@@ -15,16 +15,14 @@ Rolf
 Getting started
 ---------------
 
-Starting Rolf requires a bit of Erlang knowledge at the moment - sorry.
-
-- Start the Erlang VM on a set of machines using the same cookie.
+Start the Erlang VM on a set of machines using the same cookie.
 
     [user@john ~] erl -sname rolf -setcookie rolf123
     [user@paul ~] erl -sname rolf -setcookie rolf123
     [user@george ~] erl -sname rolf -setcookie rolf123
     [user@ringo ~] erl -sname rolf -setcookie rolf123
 
-- Join the nodes into a cluster. Skip this step if you want to monitor one node.
+Join the nodes into a cluster. Skip this step if you want to monitor one node.
 
     (rolf@john)1> net_adm:ping(rolf@paul).
     pong
@@ -33,7 +31,7 @@ Starting Rolf requires a bit of Erlang knowledge at the moment - sorry.
     (rolf@john)3> net_adm:ping(rolf@ringo).
     pong
 
-- Start the application from the node where you would like to store your data.
+Start the application from the node where you would like to store your data.
 
     (rolf@john)4> application:start(rolf).
 
