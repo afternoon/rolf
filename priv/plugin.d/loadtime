@@ -1,2 +1,0 @@
-#!/bin/bash
-curl -s -o /dev/null -w "loadtime.value %{time_total}\n" http://aftnn.org
