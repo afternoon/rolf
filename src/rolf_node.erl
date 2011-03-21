@@ -82,6 +82,7 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% ===================================================================
 
 %% @doc List all services configured to run on this node.
+%% @todo Discover dirs in priv/plugin.d and load config with rolf_plugin:load/1
 find_services() ->
     error_logger:info_report({rolf_node, node(), find_services}),
     Freq = 10000,
