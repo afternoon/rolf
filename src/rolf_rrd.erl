@@ -77,7 +77,7 @@ ensure(RRD, Node, Service) ->
     end.
 
 %% @doc Update an RRD file with a new sample.
-update(RRD, #sample{nodename=Node, service=Service, values=Values}) ->
+update(RRD, #sample{node=Node, service=Service, values=Values}) ->
     Path = rrd_path(Node, Service),
     Updates = lists:map(fun({M, V}) -> #rrd_ds_update{name=atom_to_list(M), value=V} end, Values),
     Cmd = #rrd_update{file=Path, updates=Updates},

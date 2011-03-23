@@ -43,7 +43,7 @@ start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 stop() -> gen_server:call(?MODULE, stop).
 
 %% @doc Pass samples to all recorders in the cluster.
-store(Samples) -> gen_server:abcast(?MODULE, {store, Samples}).
+store(Sample) -> gen_server:abcast(?MODULE, {store, Sample}).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -72,9 +72,9 @@ handle_call(get_state, _From, State) ->
     error_logger:info_report({rolf_recorder, get_state, State}),
     {reply, State, State}.
 
-handle_cast({store, Samples}, #recorder{rrd=RRD}=State) ->
-    error_logger:info_report({rolf_recorder, store, Samples}),
-    lists:foreach(fun(S) -> rolf_rrd:update(RRD, S) end, Samples),
+handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
+    error_logger:info_report({rolf_recorder, store, Sample}),
+    rolf_rrd:update(RRD, Sample),
     {noreply, State};
 
 handle_cast(Msg, State) ->

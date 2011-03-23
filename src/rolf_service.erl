@@ -69,9 +69,10 @@ handle_call(stop, _From, Service) ->
     {stop, normal, stopped, Service}.
 
 handle_cast(publish, Service) ->
-    [M, F, A] = Service#service.mfa,
-    Samples = apply(M, F, [Service|A]),
-    send(Samples),
+    {M, F, A} = Service#service.mfa,
+    Sample = apply(M, F, [Service|A]),
+    error_logger:info_report({rolf_service, node(), sending, Sample}),
+    rolf_recorder:store(Sample),
     {noreply, Service}.
 
 handle_info(Info, Ref) ->
@@ -92,15 +93,28 @@ server_name(Name) when is_atom(Name) ->
 server_name(#service{name=Name}) ->
     server_name(Name).
 
-%% @doc Send a set of samples to a client.
-send(Samples) ->
-    error_logger:info_report({rolf_service, node(), send, Samples}),
-    rolf_recorder:store(Samples).
-
 %% @doc Invoke plug-in and return samples.
+%% @todo Portify to handle daemonization.
 invoke(Service, Cmd, Args) ->
     error_logger:info_report({rolf_service, node(), invoke, Cmd, Args}),
-    parse_output(Service, os:cmd(string:join([Cmd, Service#service.name, Args], " "))).
+    Cmd = string:join([Cmd, Args], " "),
+    parse_output(Service#service.name, os:cmd(Cmd)).
+
+%% @doc Parse output from external command.
+parse_output(Name, Output) ->
+    Lines = split_lines(Output),
+    Values = lists:map(fun parse_line/1, Lines),
+    #sample{node=node(), service=Name, values=Values}.
+
+%% @doc Split output into lines, drop terminating ".\n" line.
+split_lines(Lines) ->
+    Lines1 = string:tokens(Lines, "\n"),
+    lists:filter(fun(L) -> L /= "." end, Lines1).
+
+%% @doc Parse line into {atom, int_or_float} tuple/
+parse_line(Line) ->
+    {K, V} = list_to_tuple(string:tokens(Line, " ")),
+    {list_to_atom(K), list_to_num(V)}.
 
 %% @doc Coerce a string to a float or an integer.
 list_to_num(S) ->
@@ -111,16 +125,7 @@ list_to_num(S) ->
             end
     end.
 
-%% @doc Parse output from external command.
-parse_output(Service, Output) ->
-    Name = Service#service.name,
-    error_logger:info_report({parse_output, Name, Output}),
-    % TODO actually parse the output
-    Lines = string:tokens(Output, "\n"),
-    Pairs = lists:map(fun(P) -> list_to_tuple(string:tokens(P, " ")) end, Lines),
-    Values = lists:map(fun({K, V}) -> {K, list_to_num(V)} end, Pairs),
-    [#sample{nodename=node(), service=Name, values=Values}].
-
+%% @doc Start emitting samples.
 start_emitting(Service) ->
     error_logger:info_report({rolf_service, node(), start_emitting}),
     Name = Service#service.name,
@@ -132,6 +137,39 @@ start_emitting(Service) ->
             error
     end.
 
+%% @doc Stop emitting samples.
 stop_emitting(Service) ->
     error_logger:info_report({rolf_service, node(), stop_emitting}),
     timer:cancel(Service#service.tref).
+
+%% ===================================================================
+%% Tests
+%% ===================================================================
+
+server_name_test() ->
+    ?assertEqual(rolf_service_loadtime, server_name(loadtime)),
+    ?assertEqual(rolf_service_loadtime, server_name(#service{name=loadtime})).
+
+list_to_num_test() ->
+    ?assertEqual(99, list_to_num("99")),
+    ?assertEqual(-1, list_to_num("-1")),
+    ?assertEqual(0.999, list_to_num("0.999")),
+    ?assertEqual(-3.14, list_to_num("-3.14")),
+    ?assertEqual(error, list_to_num("monkey")).
+
+split_lines_test() ->
+    Result = split_lines("loadtime 0.99\n.\n"),
+    ?assertEqual(["loadtime 0.99"], Result).
+
+parse_line_test() ->
+    Result = parse_line("loadtime 0.99"),
+    ?assertEqual({loadtime, 0.99}, Result).
+
+parse_output_test() ->
+    Result = parse_output(loadtime, "loadtime 0.99\n.\n"),
+    ?assertEqual(#sample{node=node(), service=loadtime, values=[{loadtime, 0.99}]}, Result).
+
+parse_output_many_test() ->
+    Result = parse_output(loadtime, "loadtime 0.99\nttfb 0.65\nrendertime 2\n.\n"),
+    ?assertEqual(#sample{node=node(), service=loadtime, values=[{loadtime,
+                        0.99}, {ttfb, 0.65}, {rendertime, 2}]}, Result).

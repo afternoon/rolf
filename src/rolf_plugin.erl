@@ -22,7 +22,6 @@
 -module(rolf_plugin).
 -export([list/0, load/1]).
 
--include_lib("eunit/include/eunit.hrl").
 -include("rolf.hrl").
 
 -define(PLUGIN_DIR, filename:join("priv", "plugin.d")).

@@ -19,6 +19,9 @@
 %% You should have received a copy of the GNU General Public License
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+%% import eunit macros into all modules
+-include_lib("eunit/include/eunit.hrl").
+
 %% @doc State record for Rolf recorder.
 -record(recorder, {rrd=undefined, nodes=undefined}).
 
@@ -36,4 +39,4 @@
 
 %% @doc Record for Rolf samples. values is a list of tuples of format
 %% {Metric, Value}
--record(sample, {nodename=undefined, service=undefined, values=undefined}).
+-record(sample, {node=undefined, service=undefined, values=undefined}).
