@@ -20,7 +20,7 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_rrd).
--export([update/2]).
+-export([ensure/3, update/2]).
 
 -include_lib("errd/include/errd.hrl").
 -include("rolf.hrl").
@@ -46,26 +46,24 @@ send_command(RRD, Cmd) ->
     end.
 
 %% @doc Generate command to create an RRD with a set of metrics.
-create_command(Path, Metrics) ->
-    Step = 10,
-    DSs = lists:map(fun({N, T}) -> #rrd_ds{name=N, type=T, args="900:U:U"} end,
-                    Metrics),
-    RRAs = [#rrd_rra{cf=average, args="0.5:1:360"},     % 1hr of 10s averages
-            #rrd_rra{cf=average, args="0.5:30:288"},    % 1d of 5m averages
-            #rrd_rra{cf=average, args="0.5:180:336"},   % 7d of 30m averages
-            #rrd_rra{cf=average, args="0.5:8640:365"}], % 1y of 1d averages
-    Cmd = #rrd_create{file=Path, step=Step, ds_defs=DSs, rra_defs=RRAs},
+create_command(Path, #service{frequency=Frequency, timeout=Timeout,
+        archives=Archives, metrics=Metrics}) ->
+    % TODO move RRA to plugin config, rewrite this to use config format
+    RRAs = lists:map(fun({S, C}) -> make_rra(S, C) end, Archives),
+    DSs = lists:map(fun(M) -> make_ds(M, Timeout) end, Metrics),
+    Cmd = #rrd_create{file=Path, step=Frequency, ds_defs=DSs, rra_defs=RRAs},
     error_logger:info_report({rolf_rrd, create_command, Cmd}),
     Cmd.
 
 %% @doc Create an RRD file for a service. Metrics should be a list of
 %% {Name, Type} tuples, e.g. [{signups, counter}, {downloads, counter}]. Type
 %% must be one of gauge, counter, derive or absolute.
-create(RRD, Path, Metrics) ->
-    send_command(RRD, create_command(Path, Metrics)).
+create(RRD, Path, Service) ->
+    send_command(RRD, create_command(Path, Service)).
 
 %% @doc Ensure data dir and RRD file for Service on Node exist.
-ensure(RRD, Path, Metrics) ->
+ensure(RRD, Node, Service) ->
+    Path = rrd_path(Node, Service),
     error_logger:info_report({rolf_rrd, ensure, path, Path}),
     case filelib:ensure_dir(Path) of
         {error, Reason} ->
@@ -73,20 +71,29 @@ ensure(RRD, Path, Metrics) ->
             {error, Reason};
         ok ->
             case filelib:is_file(Path) of
-                false -> create(RRD, Path, Metrics);
+                false -> create(RRD, Path, Service);
                 true ->  ok
             end
     end.
 
-%% @doc Update an RRD file with new values.
-update_file(RRD, Path, Values) ->
+%% @doc Update an RRD file with a new sample.
+update(RRD, #sample{nodename=Node, service=Service, values=Values}) ->
+    Path = rrd_path(Node, Service),
     Updates = lists:map(fun({M, V}) -> #rrd_ds_update{name=atom_to_list(M), value=V} end, Values),
     Cmd = #rrd_update{file=Path, updates=Updates},
     send_command(RRD, Cmd).
 
-%% @doc Update an RRD file with a new sample.
-update(RRD, #sample{nodename=Node, service=Service, values=Values}) ->
-    Path = rrd_path(Node, Service),
-    Metrics = lists:map(fun({M, _V}) -> {M, counter} end, Values),
-    ensure(RRD, Path, Metrics),
-    update_file(RRD, Path, Values).
+%% ===================================================================
+%% Utility functions
+%% ===================================================================
+
+string_format(Pattern, Values) ->
+    lists:flatten(io_lib:format(Pattern, Values)).
+
+%% @doc Create an average rrd_rra record from a step and a count.
+make_rra(Step, Count) ->
+    #rrd_rra{cf=average, args=string_format("0.5:~p:~p", [Step, Count])}.
+
+%% @doc Make a rrd_ds record from a metric definition.
+make_ds(#metric{name=Name, type=Type}, Timeout) ->
+    #rrd_ds{name=Name, type=Type, args=string_format("~p:U:U", Timeout)}.

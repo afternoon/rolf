@@ -20,15 +20,15 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 %% @doc State record for Rolf recorder.
--record(recorder, {rrd=undefined}).
+-record(recorder, {rrd=undefined, nodes=undefined}).
 
 %% @doc State record for Rolf nodes.
 -record(node, {services=[]}).
 
 %% @doc State record for Rolf services, which contains multiple metrics.
 -record(service, {name=undefined, mfa=undefined, frequency=undefined,
-                  title=undefined, vlabel=undefined, metrics=undefined,
-                  tref=undefined}).
+                  timeout=undefined, archives=undefined, graph_title=undefined,
+                  graph_vlabel=undefined, metrics=undefined, tref=undefined}).
 
 %% @doc Record for a single metric.
 -record(metric, {name=undefined, label="", type=gauge, draw=line, min=undefined,

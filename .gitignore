@@ -5,3 +5,4 @@ deps
 tags
 priv/data
 .eunit
+TEST-*.xml

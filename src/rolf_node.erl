@@ -23,7 +23,7 @@
 -behaviour(gen_server).
 -export([
         % api
-        start_link/0, stop/0, get_state/0,
+        start_link/1, stop/0, get_state/0,
         % gen_server
         init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
         code_change/3]).
@@ -34,8 +34,10 @@
 %% API
 %% ===================================================================
 
-%% @doc Start a rolf node on this node, start all services.
-start_link() -> gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+%% @doc Start a rolf node on this node, start named services. Services is a list
+%% of service name atoms.
+start_link(Services) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [Services], []).
 
 %% @doc Stop node and services.
 stop() -> gen_server:call(?MODULE, stop).
@@ -47,9 +49,8 @@ get_state() -> gen_server:call(?MODULE, get_state).
 %% gen_server callbacks
 %% ===================================================================
 
-init([]) ->
+init([Services]) ->
     error_logger:info_report({rolf_node, node(), init}),
-    Services = find_services(),
     start_services(Services),
     {ok, #node{services=Services}}.
 
@@ -81,23 +82,11 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% Utility functions
 %% ===================================================================
 
-%% @doc List all services configured to run on this node.
-%% @todo Discover dirs in priv/plugin.d and load config with rolf_plugin:load/1
-find_services() ->
-    error_logger:info_report({rolf_node, node(), find_services}),
-    Freq = 10000,
-    [#service{
-        name=loadtime,
-        mfa=[rolf_service, invoke, ["priv/plugin.d/loadtime/loadtime.sh", []]],
-        frequency=Freq},
-     #service{
-        name=disk,
-        mfa=[rolf_service, invoke, ["priv/plugin.d/disk/disk.sh", []]],
-        frequency=Freq}].
-
 %% @doc Start an instance of the rolf_service gen_server for each service.
+%Called by the recorder when the cluster is constructed.
 start_services([]) -> ok;
-start_services([S|Services]) ->
+start_services([SName|Services]) ->
+    S = rolf_plugin:load(SName),
     error_logger:info_report({rolf_node, node(), start_services, S}),
     Result = rolf_service:start_link(S),
     error_logger:info_report({rolf_node, node(), start_services, Result}),

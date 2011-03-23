@@ -20,13 +20,18 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_plugin).
--export([load/1]).
+-export([list/0, load/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("rolf.hrl").
 
 -define(PLUGIN_DIR, filename:join("priv", "plugin.d")).
 -define(PLUGIN_DEFAULT_FREQ, 10).
+-define(PLUGIN_DEFAULT_TIMEOUT_MULTIPLE, 3).
+-define(PLUGIN_DEFAULT_ARCHIVES, [{1, 360},      % 1hr of 10s averages
+                                  {30, 288},     % 1d of 5m averages
+                                  {180, 336},    % 7d of 30m averages
+                                  {8640, 365}]). % 1y of 1d averages
 -define(PLUGIN_DEFAULT_TYPE, gauge).
 -define(PLUGIN_DEFAULT_DRAW, line).
 
@@ -34,22 +39,28 @@
 %% Configuration
 %% ===================================================================
 
+%% @doc List available plugins.
+list() -> list(?PLUGIN_DIR).
+
+%% @doc List available plugins in Dir.
+list(Dir) ->
+    ConfigPat = filename:join([Dir, "*", "*.config"]),
+    Configs = filelib:wildcard(ConfigPat),
+    lists:map(fun configfilename_to_atom/1, Configs).
+
+%% @doc Translate a config file pathname to an atom
+configfilename_to_atom(CFName) ->
+    list_to_atom(filename:rootname(filename:basename(CFName))).
+
 %% @doc Load plugin config from file.
 load(Plugin) ->
-    CfgName = string:join([atom_to_list(Plugin), "config"], "."),
-    Path = filename:join(?PLUGIN_DIR, CfgName),
-    parse(Plugin, file:consult(Path)).
+    parse(Plugin, file:consult(config_path(Plugin))).
 
-%% @doc Return the Value for Key in TupleList or a default value
-keyfind_default(Key, TupleList, Default) ->
-    case lists:keyfind(Key, 1, TupleList) of
-        {Key, Value} -> Value;
-        false -> Default
-    end.
-
-%% @doc Return the full path to an external program.
-external_path(Plugin, Cmd) ->
-    filename:join([?PLUGIN_DIR, atom_to_list(Plugin), Cmd]).
+%% @doc Get path to a plugin's config file.
+config_path(Plugin) ->
+    PluginStr = atom_to_list(Plugin),
+    CfgName = string:join([PluginStr, "config"], "."),
+    filename:join([?PLUGIN_DIR, PluginStr, CfgName]).
 
 %% @doc Extract the MFA for this plugin
 parse_mfa(Plugin, Cfg) ->
@@ -59,60 +70,90 @@ parse_mfa(Plugin, Cfg) ->
         false ->
             case lists:keyfind(external, 1, Cfg) of
                 {external, Cmd, Args} ->
-                    [rolf_service, invoke, [external_path(Plugin, Cmd), Args]];
+                    {rolf_service, invoke, [external_path(Plugin, Cmd), Args]};
                 {external, Cmd} ->
-                    [rolf_service, invoke, [external_path(Plugin, Cmd), []]];
+                    {rolf_service, invoke, [external_path(Plugin, Cmd), []]};
                 false ->
                     undefined
             end
     end.
 
-%% @doc Parse config for a single metric into a metric record.
-parse_metric({Metric, MetricCfg}) ->
-    #metric{
-        name=Metric,
-        label=keyfind_default(label, MetricCfg, ""),
-        type=keyfind_default(type, MetricCfg, ?PLUGIN_DEFAULT_TYPE),
-        draw=keyfind_default(draw, MetricCfg, ?PLUGIN_DEFAULT_DRAW),
-        min=keyfind_default(min, MetricCfg, undefined),
-        max=keyfind_default(max, MetricCfg, undefined),
-        colour=keyfind_default(colour, MetricCfg, undefined)
+%% @doc Return the full path to an external program.
+external_path(Plugin, Cmd) ->
+    filename:join([?PLUGIN_DIR, atom_to_list(Plugin), Cmd]).
+
+%% @doc Parse config file contents into a service record.
+parse(Plugin, Cfg) ->
+    Freq = proplists:get_value(frequency, Cfg, ?PLUGIN_DEFAULT_FREQ),
+    #service{
+        name=Plugin,
+        mfa=parse_mfa(Plugin, Cfg),
+        frequency=Freq,
+        timeout=proplists:get_value(timeout, Cfg, Freq * ?PLUGIN_DEFAULT_TIMEOUT_MULTIPLE),
+        archives=proplists:get_value(archives, Cfg, ?PLUGIN_DEFAULT_ARCHIVES),
+        graph_title=proplists:get_value(graph_title, Cfg, atom_to_list(Plugin)),
+        graph_vlabel=proplists:get_value(graph_vlabel, Cfg, ""),
+        metrics=parse_metrics(Cfg)
     }.
 
 %% @doc Parse config for a list of metrics into list of metric records.
 parse_metrics(Cfg) ->
-    MetricCfg = keyfind_default(metrics, Cfg, []),
+    MetricCfg = proplists:get_value(metrics, Cfg, []),
     lists:map(fun parse_metric/1, MetricCfg).
 
-%% @doc Parse config file contents into a service record.
-parse(Plugin, Cfg) ->
-    #service{
-        name=Plugin,
-        mfa=parse_mfa(Plugin, Cfg),
-        frequency=keyfind_default(frequency, Cfg, ?PLUGIN_DEFAULT_FREQ),
-        title=keyfind_default(title, Cfg, atom_to_list(Plugin)),
-        vlabel=keyfind_default(vlabel, Cfg, ""),
-        metrics=parse_metrics(Cfg)
+%% @doc Parse config for a single metric into a metric record.
+parse_metric({Metric, MetricCfg}) ->
+    #metric{
+        name=Metric,
+        label=proplists:get_value(label, MetricCfg, ""),
+        type=proplists:get_value(type, MetricCfg, ?PLUGIN_DEFAULT_TYPE),
+        draw=proplists:get_value(draw, MetricCfg, ?PLUGIN_DEFAULT_DRAW),
+        min=proplists:get_value(min, MetricCfg, undefined),
+        max=proplists:get_value(max, MetricCfg, undefined),
+        colour=proplists:get_value(colour, MetricCfg, undefined)
     }.
 
 %% ===================================================================
 %% Tests
 %% ===================================================================
 
+configfilename_to_atom_test() ->
+    ?assertEqual(disk, configfilename_to_atom("priv/plugin.d/disk/disk.config")).
+
+list_test() ->
+    ?assertEqual([disk, loadtime], list("../priv/plugin.d")).
+
+config_path_test() ->
+    Path = filename:join([?PLUGIN_DIR, "loadtime", "loadtime.config"]),
+    ?assertEqual(Path, config_path(loadtime)).
+
 parse_mfa_test() ->
+    Output = parse_mfa(loadtime, [{mfa, module, function, [arg1, arg2]}]),
+    ?assertEqual({module, function, [arg1, arg2]}, Output).
+
+parse_external_test() ->
     Output = parse_mfa(loadtime, [{external, "loadtime.sh"}]),
     Args = [filename:join([?PLUGIN_DIR, "loadtime", "loadtime.sh"]), []],
-    ?assertEqual([rolf_service, invoke, Args], Output).
+    ?assertEqual({rolf_service, invoke, Args}, Output).
+
+parse_external_args_test() ->
+    Output = parse_mfa(loadtime, [{external, "loadtime.sh", ["http://aftnn.org"]}]),
+    Args = [filename:join([?PLUGIN_DIR, "loadtime", "loadtime.sh"]), ["http://aftnn.org"]],
+    ?assertEqual({rolf_service, invoke, Args}, Output).
+
+parse_nocommand_test() ->
+    ?assertEqual(undefined, parse_mfa(loadtime, [])).
 
 parse_test() ->
     Input = [{external, "loadtime.sh"},
              {frequency, 10},
-             {title, "Load Time"},
-             {vlabel, "Secs"},
+             {graph_title, "Load Time"},
+             {graph_vlabel, "Secs"},
              {metrics, [{loadtime, [{label, "Load Time"},
                                     {type, gauge},
                                     {draw, areastack},
                                     {min, 0},
                                     {colour, "#0091FF"}]}]}],
     Output = parse(loadtime, Input),
-    ?assertEqual(loadtime, Output#service.name).
+    ?assertEqual(loadtime, Output#service.name),
+    ?assertEqual(10, Output#service.frequency).

@@ -6,11 +6,8 @@ Rolf
 - Asynchronous data gathering.
 - Sample frequency down to 1 second, configured per plug-in.
 - HTTP interface for HTML, graphs and data via JSON.
-  - Dynamic graphs, no static HTML.
-- Writing plug-ins is simple. Not quite as simple as Munin, because plug-ins are
-  kept resident between updates, as in collectd.
+- Writing plug-ins is simple. Plug-ins are kept resident between updates, as in collectd.
 - Runs anywhere Erlang runs (at least Linux, OS X, Windows).
-- Nodes being monitored are an Erlang cluster.
 
 Getting started
 ---------------
@@ -22,38 +19,36 @@ Start the Erlang VM on a set of machines using the same cookie.
     [user@george ~] erl -sname rolf -setcookie rolf123
     [user@ringo ~] erl -sname rolf -setcookie rolf123
 
-Join the nodes into a cluster. Skip this step if you want to monitor one node.
+Configure which nodes and services you want to run in `priv/recorder.config`.
 
-    (rolf@john)1> net_adm:ping(rolf@paul).
-    pong
-    (rolf@john)2> net_adm:ping(rolf@george).
-    pong
-    (rolf@john)3> net_adm:ping(rolf@ringo).
-    pong
+    {nodes, [{rolf@john, all},
+             {rolf@paul, [disk]},
+             {rolf@george, [disk]},
+             {rolf@ringo, [disk]}]}.
 
 Start the application from the node where you would like to store your data.
 
-    (rolf@john)4> application:start(rolf).
+    (rolf@john)1> application:start(rolf).
 
 Architecture
 ------------
 
-    + Recorder
-    |\
-    | + Node1
-    | |\
-    |  \+ Service1
-    |   + Service2
-     \
-      + Node2
-      |\
-       \+ Service1
-        + Service4
-
 - A cluster is created (probably one node per machine) and a recorder started.
 - The recorder starts a node server on each node.
-- Each node has many services, which are started when the node server starts.
+- Each node has many services which generate data.
+- When a node starts, the recorder announces to each node what services it is
+  interested in recording info about. The node starts those services.
 - When a service generates an update, it sends it to the recorder.
+
+Example supervision tree:
+
+    Recorder
+    ├── Node1
+    │   ├── Service1
+    │   │   └── External plugin
+    │   └── Service2
+    └── ERRD Server
+        └── rrdtool
 
 Author
 ------
