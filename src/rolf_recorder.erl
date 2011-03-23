@@ -99,20 +99,32 @@ load_config() ->
     #recorder{nodes=proplists:get_value(nodes, Cfg, {node(), all})}.
 
 %% @doc Start some nodes!
-start_nodes(_RRD, _AllServiceNames, []) -> ok;
-start_nodes(RRD, AllServiceNames, [{Node, ServiceNames}|Nodes]) ->
+start_nodes(_RRD, _AllSNames, []) -> ok;
+start_nodes(RRD, AllSNames, [{Node, SNames}|Nodes]) ->
     case net_adm:ping(Node) of
         pong ->
-            ExpandedSNames = case ServiceNames of
-                all -> AllServiceNames;
-                _ ->   ServiceNames
-            end,
-            error_logger:info_report({rolf_recorder, start_nodes, Node, ExpandedSNames}),
-            Services = lists:map(fun rolf_plugin:load/1, ExpandedSNames),
+            Expanded = expand_snames(SNames, AllSNames),
+            error_logger:info_report({rolf_recorder, start_nodes, Node, Expanded}),
+            Services = lists:map(fun rolf_plugin:load/1, Expanded),
             lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, Node, S) end, Services),
             rpc:call(Node, rolf_node, start_link, [Services]);
         pang ->
             error_logger:info_report({rolf_recorder, start_nodes, nodedown, Node}),
             ok
     end,
-    start_nodes(RRD, AllServiceNames, Nodes).
+    start_nodes(RRD, AllSNames, Nodes).
+
+expand_snames(SNames, All) ->
+    case SNames of
+        all -> All;
+        _ ->   SNames
+    end.
+
+%% ===================================================================
+%% Tests
+%% ===================================================================
+
+expand_snames_test() ->
+    All = [disk, loadtime],
+    ?assertEqual([loadtime], expand_snames([loadtime], All)),
+    ?assertEqual([disk, loadtime], expand_snames(all, All)).

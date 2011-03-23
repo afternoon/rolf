@@ -28,38 +28,9 @@
 -define(RRD_DIR, filename:join("priv", "data")).
 -define(RRD_EXT, "rrd").
 
-%% @doc Create absolute path for RRD file for Service running on Node. A single
-%% RRD file contains values for multiple metrics (data sources).
-rrd_path(Node, Service) ->
-    Filename = string:join([atom_to_list(Service), ?RRD_EXT], "."),
-    filename:join([?RRD_DIR, atom_to_list(Node), Filename]).
-
-%% @doc Send command to RRD server, return ok or {error, Reason}.
-send_command(RRD, Cmd) ->
-    case errd_server:command(RRD, Cmd) of
-        {error, Reason} ->
-            error_logger:error_report({rolf_rrd, send_command, Reason}),
-            {error, Reason};
-        {ok, Lines} ->
-            error_logger:info_report({rolf_rrd, send_command, Lines}),
-            ok
-    end.
-
-%% @doc Generate command to create an RRD with a set of metrics.
-create_command(Path, #service{frequency=Frequency, timeout=Timeout,
-        archives=Archives, metrics=Metrics}) ->
-    % TODO move RRA to plugin config, rewrite this to use config format
-    RRAs = lists:map(fun({S, C}) -> make_rra(S, C) end, Archives),
-    DSs = lists:map(fun(M) -> make_ds(M, Timeout) end, Metrics),
-    Cmd = #rrd_create{file=Path, step=Frequency, ds_defs=DSs, rra_defs=RRAs},
-    error_logger:info_report({rolf_rrd, create_command, Cmd}),
-    Cmd.
-
-%% @doc Create an RRD file for a service. Metrics should be a list of
-%% {Name, Type} tuples, e.g. [{signups, counter}, {downloads, counter}]. Type
-%% must be one of gauge, counter, derive or absolute.
-create(RRD, Path, Service) ->
-    send_command(RRD, create_command(Path, Service)).
+%% ===================================================================
+%% API functions
+%% ===================================================================
 
 %% @doc Ensure data dir and RRD file for Service on Node exist.
 ensure(RRD, Node, Service) ->
@@ -76,24 +47,90 @@ ensure(RRD, Node, Service) ->
             end
     end.
 
+%% @doc Create an RRD file for a service. Metrics should be a list of
+%% {Name, Type} tuples, e.g. [{signups, counter}, {downloads, counter}]. Type
+%% must be one of gauge, counter, derive or absolute.
+create(RRD, Path, Service) ->
+    send_command(RRD, make_rrd_create(Path, Service)).
+
 %% @doc Update an RRD file with a new sample.
 update(RRD, #sample{node=Node, service=Service, values=Values}) ->
     Path = rrd_path(Node, Service),
-    Updates = lists:map(fun({M, V}) -> #rrd_ds_update{name=atom_to_list(M), value=V} end, Values),
-    Cmd = #rrd_update{file=Path, updates=Updates},
-    send_command(RRD, Cmd).
+    send_command(RRD, make_update(Path, Values)).
 
 %% ===================================================================
 %% Utility functions
 %% ===================================================================
 
+%% @doc Send command to RRD server, return ok or {error, Reason}.
+send_command(RRD, Cmd) ->
+    case errd_server:command(RRD, Cmd) of
+        {error, Reason} ->
+            error_logger:error_report({rolf_rrd, send_command, Reason}),
+            {error, Reason};
+        {ok, Lines} ->
+            error_logger:info_report({rolf_rrd, send_command, Lines}),
+            ok
+    end.
+
+%% @doc Sane string formatting.
 string_format(Pattern, Values) ->
     lists:flatten(io_lib:format(Pattern, Values)).
 
+%% @doc Create absolute path for RRD file for Service running on Node. A single
+%% RRD file contains values for multiple metrics (data sources).
+rrd_path(Node, Service) ->
+    Filename = string:join([atom_to_list(Service), ?RRD_EXT], "."),
+    filename:join([?RRD_DIR, atom_to_list(Node), Filename]).
+
+%% @doc Generate command to create an RRD with a set of metrics.
+make_rrd_create(Path, #service{frequency=Frequency, timeout=Timeout,
+        archives=Archives, metrics=Metrics}) ->
+    % TODO move RRA to plugin config, rewrite this to use config format
+    RRAs = lists:map(fun({S, C}) -> make_rra(S, C) end, Archives),
+    DSs = lists:map(fun(M) -> make_ds(M, Timeout) end, Metrics),
+    #rrd_create{file=Path, step=Frequency, ds_defs=DSs, rra_defs=RRAs}.
+
 %% @doc Create an average rrd_rra record from a step and a count.
 make_rra(Step, Count) ->
-    #rrd_rra{cf=average, args=string_format("0.5:~p:~p", [Step, Count])}.
+    #rrd_rra{cf=average, args=string_format("0.5:~b:~b", [Step, Count])}.
 
 %% @doc Make a rrd_ds record from a metric definition.
 make_ds(#metric{name=Name, type=Type}, Timeout) ->
-    #rrd_ds{name=Name, type=Type, args=string_format("~p:U:U", Timeout)}.
+    #rrd_ds{name=Name, type=Type, args=string_format("~b:U:U", [Timeout])}.
+
+%% @doc Make an rrd_update record from an RRD path and a set of values.
+make_update(Path, Values) ->
+    Updates = lists:map(fun({M, V}) -> make_ds_update(M, V) end, Values),
+    #rrd_update{file=Path, updates=Updates}.
+
+%% @doc Make an rrd_ds_update record for a measurement.
+make_ds_update(Metric, Value) ->
+    #rrd_ds_update{name=atom_to_list(Metric), value=Value}.
+
+%% ===================================================================
+%% Tests
+%% ===================================================================
+
+string_format_test() ->
+    ?assertEqual("X:1:9.5:z", string_format("~s:~b:~.1f:~p", ["X", 1, 9.5, z])).
+
+rrd_path_test() ->
+    Path = rrd_path(frank@josie, loadtime),
+    ?assertEqual(filename:join([?RRD_DIR, "frank@josie", "loadtime.rrd"]), Path).
+
+make_rrd_create_test() ->
+    Path = filename:join([?RRD_DIR, "frank@josie", "loadtime.rrd"]),
+    DSs = [#rrd_ds{name=loadtime, type=gauge, args="900:U:U"}],
+    RRAs = [#rrd_rra{cf=average, args="0.5:1:60"}],
+    Metrics = [#metric{name=loadtime, type=gauge}],
+    Create = make_rrd_create(Path, #service{frequency=60, timeout=900,
+            archives=[{1, 60}], metrics=Metrics}),
+    ?assertEqual(#rrd_create{file=Path, step=60, ds_defs=DSs, rra_defs=RRAs}, Create).
+
+make_update_test() ->
+    Path = filename:join([?RRD_DIR, "frank@josie", "loadtime.rrd"]),
+    Update = make_update(Path, [{loadtime, 0.99}]),
+    DSUpdates = [#rrd_ds_update{name="loadtime", value=0.99}],
+    Expected = #rrd_update{file=Path, updates=DSUpdates},
+    ?assertEqual(Expected, Update).
