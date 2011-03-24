@@ -97,7 +97,7 @@ make_rra(Step, Count) ->
 
 %% @doc Make a rrd_ds record from a metric definition.
 make_ds(#metric{name=Name, type=Type}, Timeout) ->
-    #rrd_ds{name=Name, type=Type, args=string_format("~b:U:U", [Timeout])}.
+    #rrd_ds{name=atom_to_list(Name), type=Type, args=string_format("~b:U:U", [Timeout])}.
 
 %% @doc Make an rrd_update record from an RRD path and a set of values.
 make_update(Path, Values) ->
@@ -121,7 +121,7 @@ rrd_path_test() ->
 
 make_rrd_create_test() ->
     Path = filename:join([?RRD_DIR, "frank@josie", "loadtime.rrd"]),
-    DSs = [#rrd_ds{name=loadtime, type=gauge, args="900:U:U"}],
+    DSs = [#rrd_ds{name="loadtime", type=gauge, args="900:U:U"}],
     RRAs = [#rrd_rra{cf=average, args="0.5:1:60"}],
     Metrics = [#metric{name=loadtime, type=gauge}],
     Create = make_rrd_create(Path, #service{frequency=60, timeout=900,
