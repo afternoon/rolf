@@ -19,7 +19,7 @@ Start the Erlang VM on a set of machines using the same cookie.
     [user@george ~] erl -sname rolf -setcookie rolf123
     [user@ringo ~] erl -sname rolf -setcookie rolf123
 
-Configure which nodes and services you want to run in `priv/recorder.config`.
+Configure which services should run on which nodes in `priv/recorder.config`.
 
     {nodes, [{rolf@john, all},
              {rolf@paul, [disk]},
@@ -34,21 +34,22 @@ Architecture
 ------------
 
 - A cluster is created (probably one node per machine) and a recorder started.
-- The recorder starts a node server on each node.
-- Each node has many services which generate data.
-- When a node starts, the recorder announces to each node what services it is
-  interested in recording info about. The node starts those services.
-- When a service generates an update, it sends it to the recorder.
+- The recorder starts services across the cluster.
+- Services can be implemented as Erlang functions, external commands or external
+  daemons.
+- Services collect samples and send them to the recorder.
 
-Example supervision tree:
+The supervision tree of an inflight Rolf instance looks like this:
 
-    Recorder
-    ├── Node1
-    │   ├── Service1
-    │   │   └── External plugin
-    │   └── Service2
-    └── ERRD Server
-        └── rrdtool
+    rolf_sup
+    ├── errd_server
+    ├── rolf_recorder
+    └── rolf_service_sup (simple_one_for_one)
+        ├── rolf_service (svc1, node1)
+        │   └── rolf_external
+        ├── rolf_service (svc2, node1)
+        └── rolf_service (svc1, node2)
+            └── rolf_external
 
 Author
 ------

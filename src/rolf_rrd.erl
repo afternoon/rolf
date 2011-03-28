@@ -34,7 +34,7 @@
 
 %% @doc Ensure data dir and RRD file for Service on Node exist.
 ensure(RRD, Node, Service) ->
-    Path = rrd_path(Node, Service),
+    Path = rrd_path(Node, Service#service.name),
     error_logger:info_report({rolf_rrd, ensure, path, Path}),
     case filelib:ensure_dir(Path) of
         {error, Reason} ->

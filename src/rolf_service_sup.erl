@@ -19,7 +19,7 @@
 %% You should have received a copy of the GNU General Public License
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
--module(rolf_sup).
+-module(rolf_service_sup).
 -behaviour(supervisor).
 
 %% API
@@ -39,9 +39,7 @@ start_link() ->
 %% Supervisor callbacks
 %% ===================================================================
 
+%% @doc Build a rolf cluster and start services according to services.config.
 init([]) ->
-    Recorder = {rolf_recorder, {rolf_recorder, start_link, []},
-                permanent, 5000, worker, [rolf_recorder]},
-    NodeSup = {rolf_service_sup, {rolf_service_sup, start_link, []},
-               permanent, infinity, supervisor, [rolf_service_sup]},
-    {ok, {{one_for_one, 5, 60}, [Recorder]}}.
+    Services = [],
+    {ok, {{simple_one_for_one, 5, 60}, Services}}.

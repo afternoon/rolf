@@ -30,7 +30,11 @@
 
 -include("rolf.hrl").
 
--define(CONFIG_FILE, filename:join("priv", "recorder.config")).
+-define(CONFIG_FILE, filename:join("priv", "services.config")).
+
+-define(ERRD_SERVER_CHILD_SPEC,
+        {rolf_sup, {errd_server, start_link, []},
+                   permanent, infinity, worker, [errd_server]}).
 
 %% ===================================================================
 %% API
@@ -58,14 +62,15 @@ init([]) ->
     % create list of all available services
     AllServiceNames = rolf_plugin:list(),
 
-    % start errd server and rolf_node servers on the cluster
-    % TODO supervisor should do these bits?
+    % start errd server and add it to the supervisor
     case errd_server:start_link() of
         {ok, RRD} ->
+            % start services on the cluster
             start_nodes(RRD, AllServiceNames, State#recorder.nodes),
             {ok, State#recorder{rrd=RRD}};
-        {stop, Reason} ->
-            error_logger:error_report({rolf_recorder, Reason})
+        Else ->
+            error_logger:error_report({rolf_recorder, errd_server, error, Else}),
+            Else
     end.
 
 handle_call(get_state, _From, State) ->
@@ -93,12 +98,13 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 %% Utility functions
 %% ===================================================================
 
-%% @doc Load recorder configuration from file.
+%% @doc Load services configuration from file.
 load_config() ->
+    error_logger:info_report({rolf_recorder, load_config}),
     {ok, Cfg} = file:consult(?CONFIG_FILE),
-    #recorder{nodes=proplists:get_value(nodes, Cfg, {node(), all})}.
+    #recorder{nodes=proplists:get_value(nodes, Cfg, [{node(), all}])}.
 
-%% @doc Start some nodes!
+%% @doc Start services on all connected nodes, rolf_service_sup should do this.
 start_nodes(_RRD, _AllSNames, []) -> ok;
 start_nodes(RRD, AllSNames, [{Node, SNames}|Nodes]) ->
     case net_adm:ping(Node) of
@@ -107,13 +113,24 @@ start_nodes(RRD, AllSNames, [{Node, SNames}|Nodes]) ->
             error_logger:info_report({rolf_recorder, start_nodes, Node, Expanded}),
             Services = lists:map(fun rolf_plugin:load/1, Expanded),
             lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, Node, S) end, Services),
-            rpc:call(Node, rolf_node, start_link, [Services]);
+            rpc:call(Node, rolf_recorder, start_services, [Services]);
         pang ->
             error_logger:info_report({rolf_recorder, start_nodes, nodedown, Node}),
             ok
     end,
     start_nodes(RRD, AllSNames, Nodes).
 
+%% @doc Start an instance of the rolf_service gen_server for each service.
+%% Called by the recorder when the cluster is constructed.
+start_services([]) -> ok;
+start_services([SName|Services]) ->
+    S = rolf_plugin:load(SName),
+    error_logger:info_report({rolf_recorder, node(), start_services, S}),
+    Result = rolf_service:start_link(S),
+    error_logger:info_report({rolf_recorder, node(), start_services, Result}),
+    start_services(Services).
+
+%% @doc Expand special all keyword in service configuration for a node.
 expand_snames(SNames, All) ->
     case SNames of
         all -> All;

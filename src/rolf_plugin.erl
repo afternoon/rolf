@@ -43,6 +43,7 @@ list() -> list(?PLUGIN_DIR).
 
 %% @doc List available plugins in Dir.
 list(Dir) ->
+    error_logger:info_report({rolf_plugin, list, Dir}),
     ConfigPat = filename:join([Dir, "*", "*.config"]),
     Configs = filelib:wildcard(ConfigPat),
     lists:map(fun configfilename_to_atom/1, Configs).
@@ -53,7 +54,8 @@ configfilename_to_atom(CFName) ->
 
 %% @doc Load plugin config from file.
 load(Plugin) ->
-    parse(Plugin, file:consult(config_path(Plugin))).
+    {ok, Cfg} = file:consult(config_path(Plugin)),
+    parse(Plugin, Cfg).
 
 %% @doc Get path to a plugin's config file.
 config_path(Plugin) ->

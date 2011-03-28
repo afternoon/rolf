@@ -7,4 +7,4 @@
               {env,[]},
               {modules,[rolf_app,rolf_client,rolf_node,rolf_plugin,
                         rolf_recorder,rolf_rrd,rolf_rrd_utils,rolf_service,
-                        rolf_sup]}]}.
+                        rolf_service_sup,rolf_sup]}]}.
