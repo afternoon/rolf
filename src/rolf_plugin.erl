@@ -20,6 +20,8 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_plugin).
+
+%% API
 -export([list/0, load/1]).
 
 -include("rolf.hrl").
@@ -69,10 +71,10 @@ parse_mfa(Plugin, Cfg) ->
         {mfa, M, F, A} ->
             {M, F, A};
         false ->
-            case lists:keyfind(external, 1, Cfg) of
-                {external, Cmd, Args} ->
+            case lists:keyfind(command, 1, Cfg) of
+                {command, Cmd, Args} ->
                     {rolf_service, invoke, [external_path(Plugin, Cmd), Args]};
-                {external, Cmd} ->
+                {command, Cmd} ->
                     {rolf_service, invoke, [external_path(Plugin, Cmd), []]};
                 false ->
                     undefined
@@ -132,13 +134,13 @@ parse_mfa_test() ->
     Output = parse_mfa(loadtime, [{mfa, module, function, [arg1, arg2]}]),
     ?assertEqual({module, function, [arg1, arg2]}, Output).
 
-parse_external_test() ->
-    Output = parse_mfa(loadtime, [{external, "loadtime.sh"}]),
+parse_command_test() ->
+    Output = parse_mfa(loadtime, [{command, "loadtime.sh"}]),
     Args = [filename:join([?PLUGIN_DIR, "loadtime", "loadtime.sh"]), []],
     ?assertEqual({rolf_service, invoke, Args}, Output).
 
-parse_external_args_test() ->
-    Output = parse_mfa(loadtime, [{external, "loadtime.sh", ["http://aftnn.org"]}]),
+parse_command_args_test() ->
+    Output = parse_mfa(loadtime, [{command, "loadtime.sh", ["http://aftnn.org"]}]),
     Args = [filename:join([?PLUGIN_DIR, "loadtime", "loadtime.sh"]), ["http://aftnn.org"]],
     ?assertEqual({rolf_service, invoke, Args}, Output).
 
@@ -146,7 +148,7 @@ parse_nocommand_test() ->
     ?assertEqual(undefined, parse_mfa(loadtime, [])).
 
 parse_test() ->
-    Input = [{external, "loadtime.sh"},
+    Input = [{command, "loadtime.sh"},
              {frequency, 10},
              {graph_title, "Load Time"},
              {graph_vlabel, "Secs"},

@@ -21,12 +21,13 @@
 
 -module(rolf_recorder).
 -behaviour(gen_server).
--export([
-        %api
-        start_link/0, stop/0, store/1,
-        % gen_server
-        init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-        code_change/3]).
+
+%% API
+-export([start_link/0, stop/0, store/1]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
+         code_change/3]).
 
 -include("rolf.hrl").
 
@@ -54,6 +55,7 @@ store(Sample) -> gen_server:abcast(?MODULE, {store, Sample}).
 %% ===================================================================
 
 init([]) ->
+    process_flag(trap_exit, true),
     error_logger:info_report({rolf_recorder, init}),
 
     % load recorder config
@@ -66,6 +68,7 @@ init([]) ->
     case errd_server:start_link() of
         {ok, RRD} ->
             % start services on the cluster
+            % register(errd_server, RRD),
             start_nodes(RRD, AllServiceNames, State#recorder.nodes),
             {ok, State#recorder{rrd=RRD}};
         Else ->
@@ -90,7 +93,9 @@ handle_info(Info, State) ->
     error_logger:info_report({rolf_recorder, handle_info, Info}),
     {noreply, State}.
 
-terminate(_Reason, _State) -> ok.
+terminate(Reason, _State) ->
+    error_logger:info_report({rolf_recorder, terminate, Reason}),
+    ok.
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 

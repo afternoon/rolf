@@ -20,6 +20,8 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_rrd).
+
+%% API
 -export([ensure/3, update/2]).
 
 -include_lib("errd/include/errd.hrl").
@@ -29,7 +31,7 @@
 -define(RRD_EXT, "rrd").
 
 %% ===================================================================
-%% API functions
+%% API
 %% ===================================================================
 
 %% @doc Ensure data dir and RRD file for Service on Node exist.

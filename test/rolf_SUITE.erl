@@ -22,7 +22,7 @@
 -module(rolf_SUITE).
 -compile(export_all).
 
--include("ct.hrl").
+-include_lib("common_test/include/ct.hrl").
 
 %% ===================================================================
 %% Common Test callbacks

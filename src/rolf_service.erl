@@ -22,14 +22,13 @@
 
 -module(rolf_service).
 -behaviour(gen_server).
--export([
-        % api
-        start_link/1, stop/1, publish/1, get_state/1,
-        % gen_server
-        init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-        code_change/3,
-        % utils
-        invoke/3, start_emitting/1, stop_emitting/1]).
+
+%% API
+-export([start_link/1, stop/1, publish/1, invoke/3, get_state/1]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
+         code_change/3]).
 
 -include("rolf.hrl").
 
@@ -57,6 +56,7 @@ get_state(Name) -> gen_server:call(server_name(Name), get_state).
 %% @doc Start service, create a timer which will sample for results regularly and
 %% publish them to the recorder.
 init([Service]) ->
+    process_flag(trap_exit, true),
     error_logger:info_report({rolf_service, node(), init, Service}),
     start_emitting(Service),
     {ok, Service}.
@@ -79,7 +79,9 @@ handle_info(Info, Ref) ->
     error_logger:info_report({rolf_service, node(), handle_info, Info}),
     {noreply, Ref}.
 
-terminate(_Reason, Service) -> stop_emitting(Service).
+terminate(Reason, Service) ->
+    error_logger:info_report({rolf_service, node(), terminate, Reason}),
+    stop_emitting(Service).
 
 code_change(_OldVsn, Service, _Extra) -> {ok, Service}.
 
@@ -89,12 +91,14 @@ code_change(_OldVsn, Service, _Extra) -> {ok, Service}.
 
 %% @doc Get canonical name of service from name atom or service record.
 server_name(Name) when is_atom(Name) ->
-    list_to_atom(string:join(lists:map(fun atom_to_list/1, [?MODULE, Name]), "_"));
+    Module = atom_to_list(?MODULE),
+    Host = net_adm:localhost(),
+    StrName = atom_to_list(Name),
+    list_to_atom(string:join([Module, Host, StrName], "_"));
 server_name(#service{name=Name}) ->
     server_name(Name).
 
 %% @doc Invoke plug-in and return samples.
-%% @todo Portify to handle daemonization.
 invoke(Service, Cmd, Args) ->
     error_logger:info_report({rolf_service, node(), invoke, Cmd, Args}),
     Cmd = string:join([Cmd, Args], " "),
@@ -147,8 +151,9 @@ stop_emitting(Service) ->
 %% ===================================================================
 
 server_name_test() ->
-    ?assertEqual(rolf_service_loadtime, server_name(loadtime)),
-    ?assertEqual(rolf_service_loadtime, server_name(#service{name=loadtime})).
+    Name = list_to_atom("rolf_service_" ++ net_adm:localhost() ++ "_loadtime"),
+    ?assertEqual(Name, server_name(loadtime)),
+    ?assertEqual(Name, server_name(#service{name=loadtime})).
 
 list_to_num_test() ->
     ?assertEqual(99, list_to_num("99")),

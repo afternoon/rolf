@@ -25,7 +25,7 @@
 %% API
 -export([start_link/0]).
 
-%% Supervisor callbacks
+%% supervisor callbacks
 -export([init/1]).
 
 %% ===================================================================
@@ -39,7 +39,8 @@ start_link() ->
 %% Supervisor callbacks
 %% ===================================================================
 
-%% @doc Build a rolf cluster and start services according to services.config.
+%% @doc Supervisor for instances of rolf_service.
 init([]) ->
-    Services = [],
-    {ok, {{simple_one_for_one, 5, 60}, Services}}.
+   ChildSpec = {rolf_service, {rolf_service, start_link, []},
+                permanent, 5000, worker, [rolf_service]},
+   {ok, {{simple_one_for_one, 5, 60}, [ChildSpec]}}.
