@@ -52,8 +52,8 @@ init([]) ->
 
     Recorder = {rolf_recorder, {rolf_recorder, start_link, []},
                 permanent, 5000, worker, [rolf_recorder]},
-    ChildSpecs = [Recorder|[child_spec(N, Ss) || {N, Ss} <- LiveServiceConfig]]
-    {ok, {{one_for_one, 5, 60}, [Recorder, NodeSup]}}.
+    ChildSpecs = [Recorder|[child_spec(N, Ss) || {N, Ss} <- LiveServiceConfig]],
+    {ok, {{one_for_one, 5, 60}, ChildSpecs}}.
 
 %% ===================================================================
 %% Utility functions
@@ -79,7 +79,7 @@ expand_snames(SNames, All) ->
 connect_cluster(Config) ->
     [{N, S} || {N, S} <- Config, net_adm:ping(N) =:= pong].
 
-child_spec(Node, Services) ->
+child_spec(_Node, Services) ->
     {rolf_service_sup, {rolf_service_sup, start_link, [Services]},
                        permanent, infinity, supervisor, [rolf_service_sup]}.
 
