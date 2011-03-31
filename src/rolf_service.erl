@@ -24,7 +24,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, stop/1, publish/1, invoke/3, get_state/1]).
+-export([start_link/1, stop/1, publish/1, invoke/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -46,9 +46,6 @@ stop(Name) -> gen_server:call(server_name(Name), stop).
 %% @doc Trigger polling of this service manually, useful for inspecting and debugging
 publish(Name) -> gen_server:cast(server_name(Name), publish).
 
-%% @doc Get internal state - for debugging.
-get_state(Name) -> gen_server:call(server_name(Name), get_state).
-
 %% ===================================================================
 %% gen_server callbacks
 %% ===================================================================
@@ -58,11 +55,9 @@ get_state(Name) -> gen_server:call(server_name(Name), get_state).
 init([Service]) ->
     process_flag(trap_exit, true),
     error_logger:info_report({rolf_service, node(), init, Service}),
+    rolf_recorder:ensure_rrd(node(), Service),
     start_emitting(Service),
     {ok, Service}.
-
-handle_call(get_state, _From, Service) ->
-    {reply, Service, Service};
 
 handle_call(stop, _From, Service) ->
     error_logger:info_report({rolf_service, node(), stop}),
@@ -106,8 +101,7 @@ invoke(Service, Cmd, Args) ->
 
 %% @doc Parse output from external command.
 parse_output(Name, Output) ->
-    Lines = split_lines(Output),
-    Values = lists:map(fun parse_line/1, Lines),
+    Values = [parse_line(Line) || Line <- split_lines(Output)],
     #sample{node=node(), service=Name, values=Values}.
 
 %% @doc Split output into lines, drop terminating ".\n" line.

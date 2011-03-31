@@ -88,9 +88,8 @@ rrd_path(Node, Service) ->
 %% @doc Generate command to create an RRD with a set of metrics.
 make_rrd_create(Path, #service{frequency=Frequency, timeout=Timeout,
         archives=Archives, metrics=Metrics}) ->
-    % TODO move RRA to plugin config, rewrite this to use config format
-    RRAs = lists:map(fun({S, C}) -> make_rra(S, C) end, Archives),
-    DSs = lists:map(fun(M) -> make_ds(M, Timeout) end, Metrics),
+    RRAs = [make_rra(S, C) || {S, C} <- Archives],
+    DSs = [make_ds(M, Timeout) || M <- Metrics],
     #rrd_create{file=Path, step=Frequency, ds_defs=DSs, rra_defs=RRAs}.
 
 %% @doc Create an average rrd_rra record from a step and a count.
@@ -103,7 +102,7 @@ make_ds(#metric{name=Name, type=Type}, Timeout) ->
 
 %% @doc Make an rrd_update record from an RRD path and a set of values.
 make_update(Path, Values) ->
-    Updates = lists:map(fun({M, V}) -> make_ds_update(M, V) end, Values),
+    Updates = [make_ds_update(M, V) || {M, V} <- Values],
     #rrd_update{file=Path, updates=Updates}.
 
 %% @doc Make an rrd_ds_update record for a measurement.

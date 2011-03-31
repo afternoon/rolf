@@ -23,7 +23,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% @doc State record for Rolf recorder.
--record(recorder, {rrd=undefined, nodes=undefined}).
+-record(recorder, {rrd=undefined}).
 
 %% @doc State record for Rolf nodes.
 -record(node, {services=[]}).

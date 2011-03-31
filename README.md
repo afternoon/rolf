@@ -42,14 +42,14 @@ Architecture
 The supervision tree of an inflight Rolf instance looks like this:
 
     rolf_sup
-    ├── errd_server
     ├── rolf_recorder
-    └── rolf_service_sup (simple_one_for_one)
-        ├── rolf_service (svc1, node1)
-        │   └── rolf_external
-        ├── rolf_service (svc2, node1)
-        └── rolf_service (svc1, node2)
-            └── rolf_external
+    │   └── errd_server
+    ├── rolf_service_sup (node1)
+    │   ├── rolf_service (svc1)
+    │   └── rolf_service (svc2)
+    │       └── rolf_external
+    └── rolf_service_sup (node2)
+        └── rolf_service (svc1)
 
 Author
 ------

@@ -40,7 +40,15 @@ start_link() ->
 %% ===================================================================
 
 %% @doc Supervisor for instances of rolf_service.
-init([]) ->
-   ChildSpec = {rolf_service, {rolf_service, start_link, []},
-                permanent, 5000, worker, [rolf_service]},
-   {ok, {{simple_one_for_one, 5, 60}, [ChildSpec]}}.
+init([Services]) ->
+    ChildSpecs = [child_spec(S) || S <- Services],
+    {ok, {{simple_one_for_one, 5, 60}, ChildSpecs}}.
+
+%% ===================================================================
+%% Utility functions
+%% ===================================================================
+
+%% @doc Create a child spec for this node.
+child_spec(Service) ->
+    {rolf_service, {rolf_service, start_link, [rolf_plugin:load(Service)]},
+                   permanent, 5000, worker, [rolf_service]}.

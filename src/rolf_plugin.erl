@@ -48,7 +48,7 @@ list(Dir) ->
     error_logger:info_report({rolf_plugin, list, Dir}),
     ConfigPat = filename:join([Dir, "*", "*.config"]),
     Configs = filelib:wildcard(ConfigPat),
-    lists:map(fun configfilename_to_atom/1, Configs).
+    [configfilename_to_atom(C) || C <- Configs].
 
 %% @doc Translate a config file pathname to an atom
 configfilename_to_atom(CFName) ->
@@ -102,7 +102,7 @@ parse(Plugin, Cfg) ->
 %% @doc Parse config for a list of metrics into list of metric records.
 parse_metrics(Cfg) ->
     MetricCfg = proplists:get_value(metrics, Cfg, []),
-    lists:map(fun parse_metric/1, MetricCfg).
+    [parse_metric(M) || M <- MetricCfg].
 
 %% @doc Parse config for a single metric into a metric record.
 parse_metric({Metric, MetricCfg}) ->
