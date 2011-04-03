@@ -54,7 +54,6 @@ store(Sample) -> gen_server:cast({global, ?MODULE}, {store, Sample}).
 
 init([]) ->
     process_flag(trap_exit, true),
-    error_logger:info_report({rolf_recorder, init}),
 
     % start errd_server
     case errd_server:start_link() of
@@ -75,16 +74,12 @@ handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
     {noreply, State};
 
 handle_cast(Msg, State) ->
-    error_logger:info_report({rolf_recorder, handle_cast, Msg}),
     {noreply, State}.
 
 handle_info(Info, State) ->
-    error_logger:info_report({rolf_recorder, handle_info, Info}),
     {noreply, State}.
 
 terminate(Reason, #recorder{rrd=RRD}) ->
-    error_logger:info_report({rolf_recorder, terminate, Reason}),
-    errd_server:stop(RRD),
-    ok.
+    errd_server:stop(RRD).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

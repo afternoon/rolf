@@ -54,29 +54,23 @@ publish(Name) -> gen_server:cast({global, server_name(Name)}, publish).
 %% publish them to the recorder.
 init([Service]) ->
     process_flag(trap_exit, true),
-    error_logger:info_report({rolf_service, node(), init, Service}),
     rolf_recorder:ensure_rrd(node(), Service),
     start_emitting(Service).
 
 handle_call(stop, _From, Service) ->
-    error_logger:info_report({rolf_service, node(), stop}),
     {stop, normal, stopped, Service}.
 
 handle_cast(publish, Service) ->
     {M, F, A} = Service#service.mfa,
     FullArgs = [Service|A],
-    error_logger:info_report({rolf_service, node(), applying, M, F, FullArgs}),
     Sample = apply(M, F, FullArgs),
-    error_logger:info_report({rolf_service, node(), sending, Sample}),
     rolf_recorder:store(Sample),
     {noreply, Service}.
 
-handle_info(Info, Ref) ->
-    error_logger:info_report({rolf_service, node(), handle_info, Info}),
+handle_info(_Info, Ref) ->
     {noreply, Ref}.
 
-terminate(Reason, Service) ->
-    error_logger:info_report({rolf_service, node(), terminate, Reason}),
+terminate(_Reason, Service) ->
     stop_emitting(Service).
 
 code_change(_OldVsn, Service, _Extra) -> {ok, Service}.
@@ -124,11 +118,13 @@ list_to_num(S) ->
             end
     end.
 
-%% @doc Start emitting samples.
+%% @doc Start emitting samples. Emit one straight away and then set a timer to
+%% emit regularly.
 start_emitting(Service) ->
-    error_logger:info_report({rolf_service, node(), start_emitting}),
     Name = Service#service.name,
     Freq = Service#service.frequency * 1000,
+    error_logger:info_report({rolf_service, node(), start_emitting, Name, Freq}),
+    apply(?MODULE, publish, [Name]),
     case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
         {ok, TRef} ->
             {ok, Service#service{tref=TRef}};
@@ -138,7 +134,8 @@ start_emitting(Service) ->
 
 %% @doc Stop emitting samples.
 stop_emitting(Service) ->
-    error_logger:info_report({rolf_service, node(), stop_emitting}),
+    Name = Service#service.name,
+    error_logger:info_report({rolf_service, node(), stop_emitting, Name}),
     timer:cancel(Service#service.tref).
 
 %% ===================================================================

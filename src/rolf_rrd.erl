@@ -37,7 +37,6 @@
 %% @doc Ensure data dir and RRD file for Service on Node exist.
 ensure(RRD, Node, Service) ->
     Path = rrd_path(Node, Service#service.name),
-    error_logger:info_report({rolf_rrd, ensure, path, Path}),
     case filelib:ensure_dir(Path) of
         {error, Reason} ->
             error_logger:error_report({rolf_rrd, ensure, Reason}),
@@ -66,12 +65,13 @@ update(RRD, #sample{node=Node, service=Service, values=Values}) ->
 
 %% @doc Send command to RRD server, return ok or {error, Reason}.
 send_command(RRD, Cmd) ->
-    case errd_server:command(RRD, Cmd) of
+    FormattedCmd = errd_command:format(Cmd),
+    error_logger:info_report({rolf_rrd, send_command, Cmd, FormattedCmd}),
+    case errd_server:raw(RRD, FormattedCmd) of
         {error, Reason} ->
             error_logger:error_report({rolf_rrd, send_command, Reason}),
             {error, Reason};
-        {ok, Lines} ->
-            error_logger:info_report({rolf_rrd, send_command, Lines}),
+        {ok, _Lines} ->
             ok
     end.
 
