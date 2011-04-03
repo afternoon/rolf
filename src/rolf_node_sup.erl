@@ -30,7 +30,7 @@
 
 -include("rolf.hrl").
 
--define(SERVICE_CONFIG_FILE, filename:join("priv", "services.config")).
+-define(SERVICE_CONFIG_FILE, filename:join("priv", "recorder.config")).
 
 %% ===================================================================
 %% API functions

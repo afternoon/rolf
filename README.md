@@ -3,7 +3,7 @@ Rolf
 
 'Azamat is run Big Data analytics on famous last words in devops. Most common is
 "I know, I roll own monitoring tool!"'
--- @DEVOPS_BORAT
+-- [@DEVOPS_BORAT](http://twitter.com/#!/DEVOPS_BORAT/status/51324117521141760)
 
 Overview
 --------
@@ -20,44 +20,45 @@ Overview
 Getting started
 ---------------
 
-Start the Erlang VM on a set of machines using the same cookie.
+Configure which node should be master and which services should run on which
+nodes in `priv/recorder.config`.
 
-    [user@john ~] erl -sname rolf -setcookie rolf123
-    [user@paul ~] erl -sname rolf -setcookie rolf123
-    [user@george ~] erl -sname rolf -setcookie rolf123
-    [user@ringo ~] erl -sname rolf -setcookie rolf123
+    {recorders, [rolf@john]}.
 
-Configure which services should run on which nodes in `priv/recorder.config`.
+    {services, [{rolf@john, all},
+                {rolf@paul, [disk]},
+                {rolf@george, [disk]},
+                {rolf@ringo, [disk]}]}.
 
-    {nodes, [{rolf@john, all},
-             {rolf@paul, [disk]},
-             {rolf@george, [disk]},
-             {rolf@ringo, [disk]}]}.
+Start Rolf on each machine.
 
-Start the application from the node where you would like to store your data.
-
-    (rolf@john)1> application:start(rolf).
+    [user@john ~] rolf.sh start
+    [user@paul ~] rolf.sh start
+    [user@george ~] rolf.sh start
+    [user@ringo ~] rolf.sh start
 
 Architecture
 ------------
 
-- A cluster is created (probably one node per machine) and a recorder started.
-- The recorder starts services across the cluster.
+- An Erlang cluster is created. Each node runs the rolf application.
+- One or more nodes is designated the recorder by it's config file.
+- If the cluster has no recorder, nothing happens.
+- If a recorder has been started, service configuration is distributed to all
+  other nodes by the recorder.
+- A node manager process starts services and they start emitting samples.
 - Services can be implemented as Erlang functions, external commands or external
   daemons.
 - Services collect samples and send them to the recorder.
 
-The supervision tree of an inflight Rolf instance looks like this:
+The supervision tree of an Rolf node looks like this (node has recorder):
 
     rolf_sup
     ├── rolf_recorder
     │   └── errd_server
-    ├── rolf_service_sup (node1)
-    │   ├── rolf_service (svc1)
-    │   └── rolf_service (svc2)
-    │       └── rolf_external
-    └── rolf_service_sup (node2)
-        └── rolf_service (svc1)
+    └── rolf_service_sup
+        ├── rolf_service (svc1)
+        └── rolf_service (svc2)
+            └── rolf_external
 
 Author
 ------
