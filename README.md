@@ -1,12 +1,20 @@
 Rolf
 ====
 
+'Azamat is run Big Data analytics on famous last words in devops. Most common is
+"I know, I roll own monitoring tool!"'
+-- @DEVOPS_BORAT
+
+Overview
+--------
+
 - Monitoring and graphing tool like Munin or collectd.
 - Written in Erlang.
 - Asynchronous data gathering.
 - Sample frequency down to 1 second, configured per plug-in.
 - HTTP interface for HTML, graphs and data via JSON.
-- Writing plug-ins is simple. Plug-ins are kept resident between updates, as in collectd.
+- Writing plug-ins is simple. Plug-ins are kept resident between updates, as in
+  collectd.
 - Runs anywhere Erlang runs (at least Linux, OS X, Windows).
 
 Getting started

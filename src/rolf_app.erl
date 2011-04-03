@@ -31,7 +31,18 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    rolf_sup:start_link().
+    case rolf_sup:start_link() of
+        {error, Reason} ->
+            error_logger:error_report({rolf_app, start, error, Reason}),
+            {error, Reason};
+        OK ->
+            case rolf_node_sup:start_cluster() of
+                {error, Reason} ->
+                    {error, Reason};
+                ok ->
+                    OK
+            end
+    end.
 
 stop(_State) ->
     ok.

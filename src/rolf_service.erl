@@ -24,7 +24,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, stop/1, publish/1, invoke/3]).
+-export([start_link/1, stop/1, publish/1, invoke/3, server_name/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -38,13 +38,13 @@
 
 %% @doc Start a service using Service as initial state.
 start_link(Service) ->
-    gen_server:start_link({local, server_name(Service)}, ?MODULE, [Service], []).
+    gen_server:start_link({global, server_name(Service)}, ?MODULE, [Service], []).
 
 %% @doc Stop service Name.
-stop(Name) -> gen_server:call(server_name(Name), stop).
+stop(Name) -> gen_server:call({global, server_name(Name)}, stop).
 
 %% @doc Trigger polling of this service manually, useful for inspecting and debugging
-publish(Name) -> gen_server:cast(server_name(Name), publish).
+publish(Name) -> gen_server:cast({global, server_name(Name)}, publish).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -56,8 +56,7 @@ init([Service]) ->
     process_flag(trap_exit, true),
     error_logger:info_report({rolf_service, node(), init, Service}),
     rolf_recorder:ensure_rrd(node(), Service),
-    start_emitting(Service),
-    {ok, Service}.
+    start_emitting(Service).
 
 handle_call(stop, _From, Service) ->
     error_logger:info_report({rolf_service, node(), stop}),
@@ -65,7 +64,9 @@ handle_call(stop, _From, Service) ->
 
 handle_cast(publish, Service) ->
     {M, F, A} = Service#service.mfa,
-    Sample = apply(M, F, [Service|A]),
+    FullArgs = [Service|A],
+    error_logger:info_report({rolf_service, node(), applying, M, F, FullArgs}),
+    Sample = apply(M, F, FullArgs),
     error_logger:info_report({rolf_service, node(), sending, Sample}),
     rolf_recorder:store(Sample),
     {noreply, Service}.
@@ -95,9 +96,9 @@ server_name(#service{name=Name}) ->
 
 %% @doc Invoke plug-in and return samples.
 invoke(Service, Cmd, Args) ->
-    error_logger:info_report({rolf_service, node(), invoke, Cmd, Args}),
-    Cmd = string:join([Cmd, Args], " "),
-    parse_output(Service#service.name, os:cmd(Cmd)).
+    FullCmd = string:join([Cmd, Args], " "),
+    error_logger:info_report({rolf_service, node(), invoke, FullCmd}),
+    parse_output(Service#service.name, os:cmd(FullCmd)).
 
 %% @doc Parse output from external command.
 parse_output(Name, Output) ->
@@ -127,12 +128,12 @@ list_to_num(S) ->
 start_emitting(Service) ->
     error_logger:info_report({rolf_service, node(), start_emitting}),
     Name = Service#service.name,
-    Freq = Service#service.frequency,
+    Freq = Service#service.frequency * 1000,
     case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
         {ok, TRef} ->
             {ok, Service#service{tref=TRef}};
-        _ ->
-            error
+        Else ->
+            Else
     end.
 
 %% @doc Stop emitting samples.

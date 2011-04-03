@@ -30,8 +30,6 @@
 
 -include("rolf.hrl").
 
--define(SERVICE_CONFIG_FILE, filename:join("priv", "services.config")).
-
 %% ===================================================================
 %% API functions
 %% ===================================================================
@@ -43,54 +41,12 @@ start_link() ->
 %% Supervisor callbacks
 %% ===================================================================
 
-%% @doc Master supervisor for rolf application.
+%% @doc Master supervisor for rolf application. Start a recorder and a second
+%% supervisor which oversees creation of the cluster and starting of a service
+%% supervisor per-node.
 init([]) ->
-    ServiceConfig = service_config(),
-    LiveServiceConfig = connect_cluster(ServiceConfig),
-
-    % start a rolf_service_sup on each node
-
     Recorder = {rolf_recorder, {rolf_recorder, start_link, []},
-                permanent, 5000, worker, [rolf_recorder]},
-    ChildSpecs = [Recorder|[child_spec(N, Ss) || {N, Ss} <- LiveServiceConfig]],
-    {ok, {{one_for_one, 5, 60}, ChildSpecs}}.
-
-%% ===================================================================
-%% Utility functions
-%% ===================================================================
-
-service_config() ->
-    case file:consult(?SERVICE_CONFIG_FILE) of
-        {ok, Config} ->
-            AllSNames = rolf_plugin:list(),
-            [{N, expand_snames(SNames, AllSNames)} || {N, SNames} <- Config];
-        Else -> Else
-    end.
-
-%% @doc Expand special all keyword in service configuration for a node.
-expand_snames(SNames, All) ->
-    case SNames of
-        all -> All;
-        _ ->   SNames
-    end.
-
-%% @doc Connect the cluster by pinging all the nodes we want to record samples
-%% from. Return the list of live nodes.
-connect_cluster(Config) ->
-    [{N, S} || {N, S} <- Config, net_adm:ping(N) =:= pong].
-
-child_spec(_Node, Services) ->
-    {rolf_service_sup, {rolf_service_sup, start_link, [Services]},
-                       permanent, infinity, supervisor, [rolf_service_sup]}.
-
-%% ===================================================================
-%% Tests
-%% ===================================================================
-
-expand_snames_test() ->
-    All = [disk, loadtime],
-    ?assertEqual([loadtime], expand_snames([loadtime], All)),
-    ?assertEqual([disk, loadtime], expand_snames(all, All)).
-
-node_service_pairs_test() ->
-    ?assertEqual([{x, 1}, {y, 1}, {y, 2}], [{x, [1]}, {y, [1, 2]}]).
+                               permanent, 5000, worker, [rolf_recorder]},
+    NodeSupervisor = {rolf_node_sup, {rolf_node_sup, start_link, []},
+                                     permanent, 5000, supervisor, [rolf_node_sup]},
+    {ok, {{one_for_one, 3, 5}, [Recorder, NodeSupervisor]}}.

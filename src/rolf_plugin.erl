@@ -45,7 +45,6 @@ list() -> list(?PLUGIN_DIR).
 
 %% @doc List available plugins in Dir.
 list(Dir) ->
-    error_logger:info_report({rolf_plugin, list, Dir}),
     ConfigPat = filename:join([Dir, "*", "*.config"]),
     Configs = filelib:wildcard(ConfigPat),
     [configfilename_to_atom(C) || C <- Configs].
@@ -56,8 +55,8 @@ configfilename_to_atom(CFName) ->
 
 %% @doc Load plugin config from file.
 load(Plugin) ->
-    {ok, Cfg} = file:consult(config_path(Plugin)),
-    parse(Plugin, Cfg).
+    {ok, Config} = file:consult(config_path(Plugin)),
+    parse(Plugin, Config).
 
 %% @doc Get path to a plugin's config file.
 config_path(Plugin) ->
@@ -66,12 +65,12 @@ config_path(Plugin) ->
     filename:join([?PLUGIN_DIR, PluginStr, CfgName]).
 
 %% @doc Extract the MFA for this plugin
-parse_mfa(Plugin, Cfg) ->
-    case lists:keyfind(mfa, 1, Cfg) of
+parse_mfa(Plugin, Config) ->
+    case lists:keyfind(mfa, 1, Config) of
         {mfa, M, F, A} ->
             {M, F, A};
         false ->
-            case lists:keyfind(command, 1, Cfg) of
+            case lists:keyfind(command, 1, Config) of
                 {command, Cmd, Args} ->
                     {rolf_service, invoke, [external_path(Plugin, Cmd), Args]};
                 {command, Cmd} ->
@@ -86,22 +85,22 @@ external_path(Plugin, Cmd) ->
     filename:join([?PLUGIN_DIR, atom_to_list(Plugin), Cmd]).
 
 %% @doc Parse config file contents into a service record.
-parse(Plugin, Cfg) ->
-    Freq = proplists:get_value(frequency, Cfg, ?PLUGIN_DEFAULT_FREQ),
+parse(Plugin, Config) ->
+    Freq = proplists:get_value(frequency, Config, ?PLUGIN_DEFAULT_FREQ),
     #service{
         name=Plugin,
-        mfa=parse_mfa(Plugin, Cfg),
+        mfa=parse_mfa(Plugin, Config),
         frequency=Freq,
-        timeout=proplists:get_value(timeout, Cfg, Freq * ?PLUGIN_DEFAULT_TIMEOUT_MULTIPLE),
-        archives=proplists:get_value(archives, Cfg, ?PLUGIN_DEFAULT_ARCHIVES),
-        graph_title=proplists:get_value(graph_title, Cfg, atom_to_list(Plugin)),
-        graph_vlabel=proplists:get_value(graph_vlabel, Cfg, ""),
-        metrics=parse_metrics(Cfg)
+        timeout=proplists:get_value(timeout, Config, Freq * ?PLUGIN_DEFAULT_TIMEOUT_MULTIPLE),
+        archives=proplists:get_value(archives, Config, ?PLUGIN_DEFAULT_ARCHIVES),
+        graph_title=proplists:get_value(graph_title, Config, atom_to_list(Plugin)),
+        graph_vlabel=proplists:get_value(graph_vlabel, Config, ""),
+        metrics=parse_metrics(Config)
     }.
 
 %% @doc Parse config for a list of metrics into list of metric records.
-parse_metrics(Cfg) ->
-    MetricCfg = proplists:get_value(metrics, Cfg, []),
+parse_metrics(Config) ->
+    MetricCfg = proplists:get_value(metrics, Config, []),
     [parse_metric(M) || M <- MetricCfg].
 
 %% @doc Parse config for a single metric into a metric record.

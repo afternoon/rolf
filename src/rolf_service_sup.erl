@@ -23,7 +23,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/1]).
 
 %% supervisor callbacks
 -export([init/1]).
@@ -32,8 +32,8 @@
 %% API functions
 %% ===================================================================
 
-start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+start_link(Services) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, [Services]).
 
 %% ===================================================================
 %% Supervisor callbacks
@@ -42,7 +42,7 @@ start_link() ->
 %% @doc Supervisor for instances of rolf_service.
 init([Services]) ->
     ChildSpecs = [child_spec(S) || S <- Services],
-    {ok, {{simple_one_for_one, 5, 60}, ChildSpecs}}.
+    {ok, {{one_for_one, 3, 5}, ChildSpecs}}.
 
 %% ===================================================================
 %% Utility functions
@@ -50,5 +50,6 @@ init([Services]) ->
 
 %% @doc Create a child spec for this node.
 child_spec(Service) ->
-    {rolf_service, {rolf_service, start_link, [rolf_plugin:load(Service)]},
-                   permanent, 5000, worker, [rolf_service]}.
+    {rolf_service:server_name(Service),
+     {rolf_service, start_link, [rolf_plugin:load(Service)]},
+     permanent, 5000, worker, [rolf_service]}.

@@ -39,14 +39,14 @@
 start_link() -> gen_server:start_link({global, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Stop recorder.
-stop() -> gen_server:call(?MODULE, stop).
+stop() -> gen_server:call({global, ?MODULE}, stop).
 
 %% @doc Ensure .rrd file exists for Service on Node.
 ensure_rrd(Node, Service) ->
-    gen_server:call(?MODULE, {ensure_rrd, Node, Service}).
+    gen_server:call({global, ?MODULE}, {ensure_rrd, Node, Service}).
 
 %% @doc Pass samples to all recorders in the cluster.
-store(Sample) -> gen_server:cast(?MODULE, {store, Sample}).
+store(Sample) -> gen_server:cast({global, ?MODULE}, {store, Sample}).
 
 %% ===================================================================
 %% gen_server callbacks

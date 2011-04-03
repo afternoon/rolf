@@ -28,29 +28,29 @@
 %% Common Test callbacks
 %% ===================================================================
 
-% Specify a list of all unit test functions
+%% Specify a list of all unit test functions
 all() -> [test1].
 
-% required, but can just return Config. this is a suite level setup function.
+%% required, but can just return Config. this is a suite level setup function.
 init_per_suite(Config) ->
-    % do custom per suite setup here
+    %% do custom per suite setup here
     Config.
 
-% required, but can just return Config. this is a suite level tear down function.
+%% required, but can just return Config. this is a suite level tear down function.
 end_per_suite(Config) ->
-    % do custom per suite cleanup here
+    %% do custom per suite cleanup here
     Config.
 
-% optional, can do function level setup for all functions,
-% or for individual functions by matching on TestCase.
+%% optional, can do function level setup for all functions,
+%% or for individual functions by matching on TestCase.
 init_per_testcase(TestCase, Config) ->
-    % do custom test case setup here
+    %% do custom test case setup here
     Config.
 
-% optional, can do function level tear down for all functions,
-% or for individual functions by matching on TestCase.
+%% optional, can do function level tear down for all functions,
+%% or for individual functions by matching on TestCase.
 end_per_testcase(TestCase, Config) ->
-    % do custom test case cleanup here
+    %% do custom test case cleanup here
     Config.
 
 %% ===================================================================
@@ -58,7 +58,7 @@ end_per_testcase(TestCase, Config) ->
 %% ===================================================================
 
 test1(Config) ->
-    % write standard erlang code to test whatever you want
-    % use pattern matching to specify expected return values
+    %% write standard erlang code to test whatever you want
+    %% use pattern matching to specify expected return values
     ok.
 
