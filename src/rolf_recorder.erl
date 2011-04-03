@@ -69,17 +69,16 @@ handle_call({ensure_rrd, Node, Service}, _From, #recorder{rrd=RRD}=State) ->
     {reply, Reply, State}.
 
 handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
-    error_logger:info_report({rolf_recorder, store, Sample}),
     rolf_rrd:update(RRD, Sample),
     {noreply, State};
 
-handle_cast(Msg, State) ->
+handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info(Info, State) ->
+handle_info(_Info, State) ->
     {noreply, State}.
 
-terminate(Reason, #recorder{rrd=RRD}) ->
+terminate(_Reason, #recorder{rrd=RRD}) ->
     errd_server:stop(RRD).
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

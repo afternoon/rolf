@@ -91,7 +91,6 @@ server_name(#service{name=Name}) ->
 %% @doc Invoke plug-in and return samples.
 invoke(Service, Cmd, Args) ->
     FullCmd = string:join([Cmd, Args], " "),
-    error_logger:info_report({rolf_service, node(), invoke, FullCmd}),
     parse_output(Service#service.name, os:cmd(FullCmd)).
 
 %% @doc Parse output from external command.

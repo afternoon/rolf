@@ -66,7 +66,6 @@ update(RRD, #sample{node=Node, service=Service, values=Values}) ->
 %% @doc Send command to RRD server, return ok or {error, Reason}.
 send_command(RRD, Cmd) ->
     FormattedCmd = errd_command:format(Cmd),
-    error_logger:info_report({rolf_rrd, send_command, Cmd, FormattedCmd}),
     case errd_server:raw(RRD, FormattedCmd) of
         {error, Reason} ->
             error_logger:error_report({rolf_rrd, send_command, Reason}),
