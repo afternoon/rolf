@@ -41,7 +41,7 @@ Architecture
 ------------
 
 - An Erlang cluster is created. Each node runs the rolf application.
-- One or more nodes is designated the recorder by it's config file.
+- One node is designated the recorder by it's config file.
 - If the cluster has no recorder, nothing happens.
 - If a recorder has been started, service configuration is distributed to all
   other nodes by the recorder.
