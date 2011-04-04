@@ -1,4 +1,4 @@
-%% @doc Rolf supervisor configuration.
+%% @doc Rolf collector node supervisor.
 %% @author Ben Godfrey <ben@ben2.com> [http://aftnn.org/]
 %% @copyright 2011 Ben Godfrey
 %% @version 1.0.0
@@ -19,11 +19,11 @@
 %% You should have received a copy of the GNU General Public License
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
--module(rolf_sup).
+-module(rolf_collector_sup).
 -behaviour(supervisor).
 
 %% API
--export([start_link/0]).
+-export([start_link/0, start_services/1]).
 
 %% supervisor callbacks
 -export([init/1]).
@@ -35,18 +35,24 @@
 %% ===================================================================
 
 start_link() ->
-    supervisor:start_link({global, ?MODULE}, ?MODULE, []).
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
 
-%% @doc Master supervisor for rolf application. Start a recorder and a second
-%% supervisor which oversees creation of the cluster and starting of a service
-%% supervisor per-node.
+%% @doc Collector supervisor initially does nothing. The recorder will send
+%% configuration.
 init([]) ->
-    Recorder = {rolf_recorder, {rolf_recorder, start_link, []},
-                               permanent, 5000, worker, [rolf_recorder]},
-    NodeSupervisor = {rolf_node_sup, {rolf_node_sup, start_link, []},
-                                     permanent, 5000, supervisor, [rolf_node_sup]},
-    {ok, {{one_for_one, 3, 5}, [Recorder, NodeSupervisor]}}.
+    SupFlags = {simple_one_for_one, 1, 10},
+    ChildTemplate = {rolf_service,
+                     {rolf_service, start_link, []},
+                     permanent, 2000, worker, [rolf_service]},
+    {ok, {SupFlags, [ChildTemplate]}}.
+
+%% @doc Start a set of service process. Called by
+%% rolf_recorder:start_collectors.
+start_services([]) -> ok;
+start_services([SN|SNames]) ->
+    supervisor:start_child(?MODULE, [SN]),
+    start_services(SNames).

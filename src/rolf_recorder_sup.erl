@@ -19,7 +19,7 @@
 %% You should have received a copy of the GNU General Public License
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
--module(rolf_service_sup).
+-module(rolf_recorder_sup).
 -behaviour(supervisor).
 
 %% API
@@ -28,28 +28,22 @@
 %% supervisor callbacks
 -export([init/1]).
 
+-include("rolf.hrl").
+
 %% ===================================================================
 %% API functions
 %% ===================================================================
 
-start_link(Services) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [Services]).
+start_link(Config) ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, [Config]).
 
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
 
-%% @doc Supervisor for instances of rolf_service.
-init([Services]) ->
-    ChildSpecs = [child_spec(S) || S <- Services],
-    {ok, {{one_for_one, 3, 5}, ChildSpecs}}.
-
-%% ===================================================================
-%% Utility functions
-%% ===================================================================
-
-%% @doc Create a child spec for this node.
-child_spec(Service) ->
-    {rolf_service:server_name(Service),
-     {rolf_service, start_link, [rolf_plugin:load(Service)]},
-     permanent, 5000, worker, [rolf_service]}.
+%% @doc Supervisor configuration for rolf recorder. Start rolf_recorder
+%% gen_server which will start an errd_server.
+init([Config]) ->
+    Recorder = {rolf_recorder, {rolf_recorder, start_link, [Config]},
+                               permanent, 1000, worker, [rolf_recorder]},
+    {ok, {{one_for_one, 1, 10}, [Recorder]}}.

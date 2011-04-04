@@ -37,14 +37,16 @@
 %% ===================================================================
 
 %% @doc Start a service using Service as initial state.
-start_link(Service) ->
-    gen_server:start_link({global, server_name(Service)}, ?MODULE, [Service], []).
+start_link(SName) ->
+    Service = rolf_plugin:load(SName),
+    error_logger:info_report([{where, {node(), rolf_service, start_link}}, {service, Service}]),
+    gen_server:start_link({local, server_name(Service)}, ?MODULE, [Service], []).
 
 %% @doc Stop service Name.
-stop(Name) -> gen_server:call({global, server_name(Name)}, stop).
+stop(Name) -> gen_server:call({local, server_name(Name)}, stop).
 
 %% @doc Trigger polling of this service manually, useful for inspecting and debugging
-publish(Name) -> gen_server:cast({global, server_name(Name)}, publish).
+publish(Name) -> gen_server:cast({local, server_name(Name)}, publish).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -82,9 +84,8 @@ code_change(_OldVsn, Service, _Extra) -> {ok, Service}.
 %% @doc Get canonical name of service from name atom or service record.
 server_name(Name) when is_atom(Name) ->
     Module = atom_to_list(?MODULE),
-    Host = net_adm:localhost(),
     StrName = atom_to_list(Name),
-    list_to_atom(string:join([Module, Host, StrName], "_"));
+    list_to_atom(string:join([Module, StrName], "_"));
 server_name(#service{name=Name}) ->
     server_name(Name).
 
@@ -122,7 +123,7 @@ list_to_num(S) ->
 start_emitting(Service) ->
     Name = Service#service.name,
     Freq = Service#service.frequency * 1000,
-    error_logger:info_report({rolf_service, node(), start_emitting, Name, Freq}),
+    error_logger:info_report([{where, {rolf_service, node(), start_emitting}}, {name, Name}, {freq, Freq}]),
     apply(?MODULE, publish, [Name]),
     case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
         {ok, TRef} ->
@@ -134,7 +135,7 @@ start_emitting(Service) ->
 %% @doc Stop emitting samples.
 stop_emitting(Service) ->
     Name = Service#service.name,
-    error_logger:info_report({rolf_service, node(), stop_emitting, Name}),
+    error_logger:info_report([{where, {rolf_service, node(), start_emitting}}, {name, Name}]),
     timer:cancel(Service#service.tref).
 
 %% ===================================================================
@@ -142,7 +143,7 @@ stop_emitting(Service) ->
 %% ===================================================================
 
 server_name_test() ->
-    Name = list_to_atom("rolf_service_" ++ net_adm:localhost() ++ "_loadtime"),
+    Name = list_to_atom("rolf_service_loadtime"),
     ?assertEqual(Name, server_name(loadtime)),
     ?assertEqual(Name, server_name(#service{name=loadtime})).
 

@@ -31,17 +31,14 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    case rolf_sup:start_link() of
-        {error, Reason} ->
-            error_logger:error_report({rolf_app, start, error, Reason}),
-            {error, Reason};
-        OK ->
-            case rolf_node_sup:start_cluster() of
-                {error, Reason} ->
-                    {error, Reason};
-                ok ->
-                    OK
-            end
+    CResult = rolf_collector_sup:start_link(),
+    RConfig = rolf_recorder:config(),
+    case rolf_recorder:is_recorder(RConfig, node()) of
+        true ->
+            error_logger:info_report([{where, {node(), rolf_app, start}}, {is_recorder, true}]),
+            rolf_recorder_sup:start_link(RConfig);
+        _ ->
+            CResult
     end.
 
 stop(_State) ->
