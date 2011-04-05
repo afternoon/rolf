@@ -42,10 +42,21 @@ start_link(Service) ->
     gen_server:start_link({local, server_name(Service)}, ?MODULE, [Service], []).
 
 %% @doc Stop service Name.
-stop(Name) -> gen_server:call({local, server_name(Name)}, stop).
+stop(Name) ->
+    gen_server:call({local, server_name(Name)}, stop).
 
 %% @doc Trigger polling of this service manually, useful for inspecting and debugging
-publish(Name) -> gen_server:cast({local, server_name(Name)}, publish).
+publish(Name) ->
+    gen_server:cast({local, server_name(Name)}, publish).
+
+%% @doc Start emitting samples. Emit one straight away and then set a timer to
+%% emit regularly.
+start_emitting(Name) ->
+    gen_server:cast({local, server_name(Name)}, start_emitting).
+
+%% @doc Stop emitting samples.
+stop_emitting(Name) ->
+    gen_server:cast({local, server_name(Name)}, stop_emitting).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -55,17 +66,35 @@ publish(Name) -> gen_server:cast({local, server_name(Name)}, publish).
 %% publish them to the recorder.
 init([Service]) ->
     process_flag(trap_exit, true),
-    start_emitting(Service).
+    {start_emitting(Service), Service}.
 
-handle_call(stop, _From, Service) ->
-    {stop, normal, stopped, Service}.
+handle_call(_Req, _From, Service) ->
+    {reply, Service}.
 
 handle_cast(publish, Service) ->
     {M, F, A} = Service#service.mfa,
     FullArgs = [Service|A],
     Sample = apply(M, F, FullArgs),
     rolf_recorder:store(Sample),
-    {noreply, Service}.
+    {noreply, Service};
+
+handle_cast(start_emitting, Service) ->
+    Name = Service#service.name,
+    Freq = Service#service.frequency * 1000,
+    error_logger:info_report([{where, {node(), rolf_service, start_emitting}}, {name, Name}, {freq, Freq}]),
+    apply(?MODULE, publish, [Name]),
+    case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
+        {ok, TRef} ->
+            {noreply, Service#service{tref=TRef}};
+        _ ->
+            {noreply, Service}
+    end;
+
+handle_cast(stop_emitting, Service) ->
+    Name = Service#service.name,
+    error_logger:info_report([{where, {rolf_service, node(), start_emitting}}, {name, Name}]),
+    timer:cancel(Service#service.tref),
+    {noreply, Service#service{tref=undef}}.
 
 handle_info(_Info, Ref) ->
     {noreply, Ref}.
@@ -74,30 +103,6 @@ terminate(_Reason, Service) ->
     stop_emitting(Service).
 
 code_change(_OldVsn, Service, _Extra) -> {ok, Service}.
-
-%% ===================================================================
-%% Operational functions
-%% ===================================================================
-
-%% @doc Start emitting samples. Emit one straight away and then set a timer to
-%% emit regularly.
-start_emitting(Service) ->
-    Name = Service#service.name,
-    Freq = Service#service.frequency * 1000,
-    error_logger:info_report([{where, {node(), rolf_service, start_emitting}}, {name, Name}, {freq, Freq}]),
-    apply(?MODULE, publish, [Name]),
-    case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
-        {ok, TRef} ->
-            {ok, Service#service{tref=TRef}};
-        Else ->
-            Else
-    end.
-
-%% @doc Stop emitting samples.
-stop_emitting(Service) ->
-    Name = Service#service.name,
-    error_logger:info_report([{where, {rolf_service, node(), start_emitting}}, {name, Name}]),
-    timer:cancel(Service#service.tref).
 
 %% ===================================================================
 %% Utility functions
