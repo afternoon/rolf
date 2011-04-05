@@ -63,8 +63,10 @@ init([Config]) ->
     % start errd_server
     case errd_server:start_link() of
         {ok, RRD} ->
-            start_collectors(Config, RRD),
-            {ok, #recorder{rrd=RRD}};
+            Collectors = collectors(Config),
+            start_collectors(Collectors, RRD),
+            net_kernel:monitor_nodes(true),
+            {ok, #recorder{collectors=Collectors, rrd=RRD}};
         Else ->
             error_logger:error_report([{where, {node(), rolf_recorder, init}}, {errd_server_error, Else}]),
             {stop, Else}
@@ -78,7 +80,17 @@ handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
     rolf_rrd:update(RRD, Sample),
     {noreply, State}.
 
-handle_info(_Info, State) ->
+%% @doc Handle nodeup messages from monitoring nodes. Start services if the node
+%% is a collector.
+handle_info({nodeup, Node}, #recorder{collectors=Collectors, rrd=RRD}=State) ->
+    error_logger:info_report([{where, {node(), rolf_recorder, handle_info, nodeup}}, {node, Node}, {collectors, Collectors}]),
+    case lists:keyfind(Node, 1, Collectors) of
+        {N, Ss} -> start_services(N, Ss, RRD)
+    end,
+    {noreply, State};
+
+handle_info({nodedown, Node}, State) ->
+    error_logger:info_report([{where, {node(), rolf_recorder, handle_info, nodedown}}, {node, Node}]),
     {noreply, State}.
 
 terminate(_Reason, #recorder{rrd=RRD}) ->
@@ -105,14 +117,13 @@ expand_snames(SNames, All) ->
     end.
 
 %% @doc Ping collector nodes and give them service configuration.
-start_collectors(Config, RRD) ->
-    NodeServices = service_config(Config),
-    LiveNodeServices = connect_cluster(NodeServices),
-    error_logger:info_report([{where, {node(), rolf_recorder, start_collectors}}, {services, LiveNodeServices}]),
-    start_services(LiveNodeServices, RRD).
+start_collectors(Collectors, RRD) ->
+    LiveCollectors = connect_cluster(Collectors),
+    error_logger:info_report([{where, {node(), rolf_recorder, start_collectors}}, {live_collectors, LiveCollectors}]),
+    lists:foreach(fun({N, Ss}) -> start_services(N, Ss, RRD) end, Collectors).
 
 %% @doc Get node and service config from config file.
-service_config(Config) ->
+collectors(Config) ->
     AllSNames = rolf_plugin:list(),
     ServiceConfig = proplists:get_value(services, Config, [{node(), all}]),
     [{N, expand_snames(SNames, AllSNames)} || {N, SNames} <- ServiceConfig].
@@ -122,12 +133,11 @@ connect_cluster(Config) ->
     [{N, S} || {N, S} <- Config, net_adm:ping(N) =:= pong].
 
 %% @doc Start collectors on a set of nodes.
-start_services([], _RRD) -> ok;
-start_services([{N, SNames}|NodeServices], RRD) ->
+start_services(Node, SNames, RRD) ->
+    error_logger:info_report([{where, {node(), rolf_recorder, start_services}}, {node, Node}, {snames, SNames}]),
     Services = [rolf_plugin:load(SN) || SN <- SNames],
-    lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, N, S) end, Services),
-    rpc:call(N, rolf_collector_sup, start_services, [Services]),
-    start_services(NodeServices, RRD).
+    lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, Node, S) end, Services),
+    rpc:call(Node, rolf_collector_sup, start_services, [Services]).
 
 %% ===================================================================
 %% Tests
