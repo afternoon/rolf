@@ -32,10 +32,10 @@ nodes in `priv/recorder.config`.
 
 Start Rolf on each machine.
 
-    [user@john ~] rolf.sh start
-    [user@paul ~] rolf.sh start
-    [user@george ~] rolf.sh start
-    [user@ringo ~] rolf.sh start
+    [user@john ~] rolf start
+    [user@paul ~] rolf start
+    [user@george ~] rolf start
+    [user@ringo ~] rolf start
 
 Architecture
 ------------

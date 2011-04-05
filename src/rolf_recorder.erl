@@ -120,7 +120,7 @@ expand_snames(SNames, All) ->
 start_collectors(Collectors, RRD) ->
     LiveCollectors = connect_cluster(Collectors),
     error_logger:info_report([{where, {node(), rolf_recorder, start_collectors}}, {live_collectors, LiveCollectors}]),
-    lists:foreach(fun({N, Ss}) -> start_services(N, Ss, RRD) end, Collectors).
+    lists:foreach(fun({N, Ss}) -> start_services(N, Ss, RRD) end, LiveCollectors).
 
 %% @doc Get node and service config from config file.
 collectors(Config) ->

@@ -87,7 +87,7 @@ handle_cast(stop_emitting, Service) ->
     Name = Service#service.name,
     error_logger:info_report([{where, {node(), rolf_service, handle_cast, stop_emitting}}, {name, Name}]),
     timer:cancel(Service#service.tref),
-    {noreply, Service#service{tref=undef}};
+    {noreply, Service#service{tref=undefined}};
 
 handle_cast(publish, Service) ->
     {M, F, A} = Service#service.mfa,
