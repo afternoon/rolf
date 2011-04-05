@@ -23,7 +23,7 @@
 -behaviour(gen_server).
 
 %% API
--export([config/0, is_recorder/2, start_link/1, stop/0, ensure_rrd/2, store/1]).
+-export([config/0, is_recorder/2, start_link/1, stop/0, store/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -49,10 +49,6 @@ start_link(Config) ->
 stop() ->
     gen_server:call({global, ?MODULE}, stop).
 
-%% @doc Ensure .rrd file exists for Service on Node.
-ensure_rrd(Node, Service) ->
-    gen_server:call({global, ?MODULE}, {ensure_rrd, Node, Service}).
-
 %% @doc Pass samples to all recorders in the cluster.
 store(Sample) ->
     gen_server:cast({global, ?MODULE}, {store, Sample}).
@@ -67,23 +63,19 @@ init([Config]) ->
     % start errd_server
     case errd_server:start_link() of
         {ok, RRD} ->
-            start_collectors(Config),
+            start_collectors(Config, RRD),
             {ok, #recorder{rrd=RRD}};
         Else ->
             error_logger:error_report([{where, {node(), rolf_recorder, init}}, {errd_server_error, Else}]),
             {stop, Else}
     end.
 
-handle_call({ensure_rrd, Node, Service}, _From, #recorder{rrd=RRD}=State) ->
-    error_logger:info_report([{where, {node(), rolf_recorder, handle_call, ensure_rrd}}, {node, Node}, {service, Service}]),
-    Reply = rolf_rrd:ensure(RRD, Node, Service),
-    {reply, Reply, State}.
+handle_call(_Req, _From, State) ->
+  {reply, State}.
 
 handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
+    error_logger:info_report([{where, {node(), rolf_recorder, handle_cast, store}}, {sample, Sample}]),
     rolf_rrd:update(RRD, Sample),
-    {noreply, State};
-
-handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info(_Info, State) ->
@@ -113,11 +105,11 @@ expand_snames(SNames, All) ->
     end.
 
 %% @doc Ping collector nodes and give them service configuration.
-start_collectors(Config) ->
+start_collectors(Config, RRD) ->
     NodeServices = service_config(Config),
     LiveNodeServices = connect_cluster(NodeServices),
     error_logger:info_report([{where, {node(), rolf_recorder, start_collectors}}, {services, LiveNodeServices}]),
-    start_services(LiveNodeServices).
+    start_services(LiveNodeServices, RRD).
 
 %% @doc Get node and service config from config file.
 service_config(Config) ->
@@ -130,10 +122,12 @@ connect_cluster(Config) ->
     [{N, S} || {N, S} <- Config, net_adm:ping(N) =:= pong].
 
 %% @doc Start collectors on a set of nodes.
-start_services([]) -> ok;
-start_services([{N, Services}|NodeServices]) ->
+start_services([], _RRD) -> ok;
+start_services([{N, SNames}|NodeServices], RRD) ->
+    Services = [rolf_plugin:load(SN) || SN <- SNames],
+    lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, N, S) end, Services),
     rpc:call(N, rolf_collector_sup, start_services, [Services]),
-    start_services(NodeServices).
+    start_services(NodeServices, RRD).
 
 %% ===================================================================
 %% Tests

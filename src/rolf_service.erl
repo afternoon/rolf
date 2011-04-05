@@ -37,8 +37,7 @@
 %% ===================================================================
 
 %% @doc Start a service using Service as initial state.
-start_link(SName) ->
-    Service = rolf_plugin:load(SName),
+start_link(Service) ->
     error_logger:info_report([{where, {node(), rolf_service, start_link}}, {service, Service}]),
     gen_server:start_link({local, server_name(Service)}, ?MODULE, [Service], []).
 
@@ -56,7 +55,6 @@ publish(Name) -> gen_server:cast({local, server_name(Name)}, publish).
 %% publish them to the recorder.
 init([Service]) ->
     process_flag(trap_exit, true),
-    rolf_recorder:ensure_rrd(node(), Service),
     start_emitting(Service).
 
 handle_call(stop, _From, Service) ->
@@ -78,6 +76,30 @@ terminate(_Reason, Service) ->
 code_change(_OldVsn, Service, _Extra) -> {ok, Service}.
 
 %% ===================================================================
+%% Operational functions
+%% ===================================================================
+
+%% @doc Start emitting samples. Emit one straight away and then set a timer to
+%% emit regularly.
+start_emitting(Service) ->
+    Name = Service#service.name,
+    Freq = Service#service.frequency * 1000,
+    error_logger:info_report([{where, {node(), rolf_service, start_emitting}}, {name, Name}, {freq, Freq}]),
+    apply(?MODULE, publish, [Name]),
+    case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
+        {ok, TRef} ->
+            {ok, Service#service{tref=TRef}};
+        Else ->
+            Else
+    end.
+
+%% @doc Stop emitting samples.
+stop_emitting(Service) ->
+    Name = Service#service.name,
+    error_logger:info_report([{where, {rolf_service, node(), start_emitting}}, {name, Name}]),
+    timer:cancel(Service#service.tref).
+
+%% ===================================================================
 %% Utility functions
 %% ===================================================================
 
@@ -88,6 +110,10 @@ server_name(Name) when is_atom(Name) ->
     list_to_atom(string:join([Module, StrName], "_"));
 server_name(#service{name=Name}) ->
     server_name(Name).
+
+%% ===================================================================
+%% Command functions
+%% ===================================================================
 
 %% @doc Invoke plug-in and return samples.
 invoke(Service, Cmd, Args) ->
@@ -117,26 +143,6 @@ list_to_num(S) ->
                 error:badarg -> error
             end
     end.
-
-%% @doc Start emitting samples. Emit one straight away and then set a timer to
-%% emit regularly.
-start_emitting(Service) ->
-    Name = Service#service.name,
-    Freq = Service#service.frequency * 1000,
-    error_logger:info_report([{where, {rolf_service, node(), start_emitting}}, {name, Name}, {freq, Freq}]),
-    apply(?MODULE, publish, [Name]),
-    case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
-        {ok, TRef} ->
-            {ok, Service#service{tref=TRef}};
-        Else ->
-            Else
-    end.
-
-%% @doc Stop emitting samples.
-stop_emitting(Service) ->
-    Name = Service#service.name,
-    error_logger:info_report([{where, {rolf_service, node(), start_emitting}}, {name, Name}]),
-    timer:cancel(Service#service.tref).
 
 %% ===================================================================
 %% Tests
