@@ -24,7 +24,8 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/1, stop/1, publish/1, invoke/3, server_name/1]).
+-export([start_link/1, stop/1, publish/1, start_emitting/1, stop_emitting/1,
+         invoke/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -38,25 +39,24 @@
 
 %% @doc Start a service using Service as initial state.
 start_link(Service) ->
-    error_logger:info_report([{where, {node(), rolf_service, start_link}}, {service, Service}]),
     gen_server:start_link({local, server_name(Service)}, ?MODULE, [Service], []).
 
 %% @doc Stop service Name.
 stop(Name) ->
-    gen_server:call({local, server_name(Name)}, stop).
-
-%% @doc Trigger polling of this service manually, useful for inspecting and debugging
-publish(Name) ->
-    gen_server:cast({local, server_name(Name)}, publish).
+    gen_server:call(server_name(Name), stop).
 
 %% @doc Start emitting samples. Emit one straight away and then set a timer to
 %% emit regularly.
 start_emitting(Name) ->
-    gen_server:cast({local, server_name(Name)}, start_emitting).
+    gen_server:cast(server_name(Name), start_emitting).
 
 %% @doc Stop emitting samples.
 stop_emitting(Name) ->
-    gen_server:cast({local, server_name(Name)}, stop_emitting).
+    gen_server:cast(server_name(Name), stop_emitting).
+
+%% @doc Trigger polling of this service manually, useful for inspecting and debugging
+publish(Name) ->
+    gen_server:cast(server_name(Name), publish).
 
 %% ===================================================================
 %% gen_server callbacks
@@ -66,22 +66,15 @@ stop_emitting(Name) ->
 %% publish them to the recorder.
 init([Service]) ->
     process_flag(trap_exit, true),
-    {start_emitting(Service), Service}.
+    {ok, Service}.
 
 handle_call(_Req, _From, Service) ->
     {reply, Service}.
 
-handle_cast(publish, Service) ->
-    {M, F, A} = Service#service.mfa,
-    FullArgs = [Service|A],
-    Sample = apply(M, F, FullArgs),
-    rolf_recorder:store(Sample),
-    {noreply, Service};
-
 handle_cast(start_emitting, Service) ->
     Name = Service#service.name,
     Freq = Service#service.frequency * 1000,
-    error_logger:info_report([{where, {node(), rolf_service, start_emitting}}, {name, Name}, {freq, Freq}]),
+    error_logger:info_report([{where, {node(), rolf_service, handle_cast, start_emitting}}, {name, Name}, {freq, Freq}]),
     apply(?MODULE, publish, [Name]),
     case timer:apply_interval(Freq, ?MODULE, publish, [Name]) of
         {ok, TRef} ->
@@ -92,9 +85,16 @@ handle_cast(start_emitting, Service) ->
 
 handle_cast(stop_emitting, Service) ->
     Name = Service#service.name,
-    error_logger:info_report([{where, {rolf_service, node(), start_emitting}}, {name, Name}]),
+    error_logger:info_report([{where, {node(), rolf_service, handle_cast, stop_emitting}}, {name, Name}]),
     timer:cancel(Service#service.tref),
-    {noreply, Service#service{tref=undef}}.
+    {noreply, Service#service{tref=undef}};
+
+handle_cast(publish, Service) ->
+    {M, F, A} = Service#service.mfa,
+    FullArgs = [Service|A],
+    Sample = apply(M, F, FullArgs),
+    rolf_recorder:store(Sample),
+    {noreply, Service}.
 
 handle_info(_Info, Ref) ->
     {noreply, Ref}.
@@ -110,9 +110,7 @@ code_change(_OldVsn, Service, _Extra) -> {ok, Service}.
 
 %% @doc Get canonical name of service from name atom or service record.
 server_name(Name) when is_atom(Name) ->
-    Module = atom_to_list(?MODULE),
-    StrName = atom_to_list(Name),
-    list_to_atom(string:join([Module, StrName], "_"));
+    list_to_atom(string:join([atom_to_list(A) || A <- [?MODULE, Name]], "_"));
 server_name(#service{name=Name}) ->
     server_name(Name).
 

@@ -45,5 +45,5 @@ start_link(Config) ->
 %% gen_server which will start an errd_server.
 init([Config]) ->
     Recorder = {rolf_recorder, {rolf_recorder, start_link, [Config]},
-                               permanent, 1000, worker, [rolf_recorder]},
+                               permanent, 2000, worker, [rolf_recorder]},
     {ok, {{one_for_one, 1, 10}, [Recorder]}}.
