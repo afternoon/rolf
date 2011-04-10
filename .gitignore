@@ -3,7 +3,8 @@
 *.sw[nop]
 deps
 tags
-priv/data
+ebin
+apps/rolf/priv/data
 .eunit
 logs
 TEST-*.xml
