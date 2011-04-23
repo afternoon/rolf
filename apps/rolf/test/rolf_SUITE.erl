@@ -43,13 +43,13 @@ end_per_suite(Config) ->
 
 %% optional, can do function level setup for all functions,
 %% or for individual functions by matching on TestCase.
-init_per_testcase(TestCase, Config) ->
+init_per_testcase(_TestCase, Config) ->
     %% do custom test case setup here
     Config.
 
 %% optional, can do function level tear down for all functions,
 %% or for individual functions by matching on TestCase.
-end_per_testcase(TestCase, Config) ->
+end_per_testcase(_TestCase, Config) ->
     %% do custom test case cleanup here
     Config.
 
@@ -57,7 +57,7 @@ end_per_testcase(TestCase, Config) ->
 %% Test cases
 %% ===================================================================
 
-test1(Config) ->
+test1(_Config) ->
     %% write standard erlang code to test whatever you want
     %% use pattern matching to specify expected return values
     ok.
