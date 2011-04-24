@@ -60,6 +60,22 @@ The supervision tree of an Rolf node looks like this (node has recorder):
         └── rolf_service (svc2)
             └── rolf_external
 
+Plugins
+-------
+
+Plugins add additional collectors to Rolf.
+
+- Plugins live in app/rolf/priv/plugin.d.
+- A plugin has a config file, see
+  `app/rolf/priv/plugin.d/loadtime/loadtime.config` for an example.
+- Plugin config includes an options key. Options can be overridden per-site by
+  customising `recorder.config`.
+- Plugins can use an Erlang module, a command or a daemon to collect data.
+- Plugin collectors written in Erlang should use the `rolf_collector` behaviour.
+- The `collect/1` function should capture data. The argument, `Service`, is a
+  `service` record, which includes lots of useful info such as name and options
+  (see `apps/rolf/include/rolf.hrl` for more info).
+
 Author
 ------
 

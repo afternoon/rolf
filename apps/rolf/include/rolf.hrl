@@ -23,20 +23,36 @@
 -include_lib("eunit/include/eunit.hrl").
 
 %% @doc State record for Rolf recorder.
--record(recorder, {collectors=[], rrd=undefined}).
+-record(recorder, {collectors=[],
+                   rrd=undefined}).
 
 %% @doc State record for Rolf nodes.
 -record(node, {services=[]}).
 
 %% @doc State record for Rolf services, which contains multiple metrics.
--record(service, {name=undefined, mfa=undefined, frequency=undefined,
-                  timeout=undefined, archives=undefined, graph_title=undefined,
-                  graph_vlabel=undefined, metrics=undefined, tref=undefined}).
+-record(service, {name=undefined,
+                  module=undefined,
+                  command=undefined,
+                  frequency=undefined,
+                  timeout=undefined,
+                  archives=undefined,
+                  graph_title=undefined,
+                  graph_vlabel=undefined,
+                  metrics=undefined,
+                  options=undefined,
+                  tref=undefined}).
 
 %% @doc Record for a single metric.
--record(metric, {name=undefined, label="", type=gauge, draw=line, min=undefined,
-                 max=undefined, colour=undefined}).
+-record(metric, {name=undefined,
+                 label="",
+                 type=gauge,
+                 draw=line,
+                 min=undefined,
+                 max=undefined,
+                 colour=undefined}).
 
 %% @doc Record for Rolf samples. values is a list of tuples of format
-%% {Metric, Value}
--record(sample, {node=undefined, service=undefined, values=undefined}).
+%% {Metric, Value}.
+-record(sample, {node=undefined,
+                 service=undefined,
+                 values=undefined}).

@@ -64,20 +64,13 @@ config_path(Plugin) ->
     CfgName = string:join([PluginStr, "config"], "."),
     filename:join([?PLUGIN_DIR, PluginStr, CfgName]).
 
-%% @doc Extract the MFA for this plugin
-parse_mfa(Plugin, Config) ->
-    case lists:keyfind(mfa, 1, Config) of
-        {mfa, M, F, A} ->
-            {M, F, A};
-        false ->
-            case lists:keyfind(command, 1, Config) of
-                {command, Cmd, Args} ->
-                    {rolf_service, invoke, [external_path(Plugin, Cmd), Args]};
-                {command, Cmd} ->
-                    {rolf_service, invoke, [external_path(Plugin, Cmd), []]};
-                false ->
-                    undefined
-            end
+%% @doc Parse the command for this plugin.
+parse_command(Plugin, Config) ->
+    case proplists:get_value(command, Config, undefined) of
+        undefined ->
+            undefined;
+        Cmd ->
+            external_path(Plugin, Cmd)
     end.
 
 %% @doc Return the full path to an external program.
@@ -89,13 +82,15 @@ parse(Plugin, Config) ->
     Freq = proplists:get_value(frequency, Config, ?PLUGIN_DEFAULT_FREQ),
     #service{
         name=Plugin,
-        mfa=parse_mfa(Plugin, Config),
+        module=proplists:get_value(module, Config, rolf_command),
+        command=parse_command(Plugin, Config),
         frequency=Freq,
         timeout=proplists:get_value(timeout, Config, Freq * ?PLUGIN_DEFAULT_TIMEOUT_MULTIPLE),
         archives=proplists:get_value(archives, Config, ?PLUGIN_DEFAULT_ARCHIVES),
         graph_title=proplists:get_value(graph_title, Config, atom_to_list(Plugin)),
         graph_vlabel=proplists:get_value(graph_vlabel, Config, ""),
-        metrics=parse_metrics(Config)
+        metrics=parse_metrics(Config),
+        options=proplists:get_value(options, Config, [])
     }.
 
 %% @doc Parse config for a list of metrics into list of metric records.
@@ -129,23 +124,6 @@ config_path_test() ->
     Path = filename:join([?PLUGIN_DIR, "loadtime", "loadtime.config"]),
     ?assertEqual(Path, config_path(loadtime)).
 
-parse_mfa_test() ->
-    Output = parse_mfa(loadtime, [{mfa, module, function, [arg1, arg2]}]),
-    ?assertEqual({module, function, [arg1, arg2]}, Output).
-
-parse_command_test() ->
-    Output = parse_mfa(loadtime, [{command, "loadtime.sh"}]),
-    Args = [filename:join([?PLUGIN_DIR, "loadtime", "loadtime.sh"]), []],
-    ?assertEqual({rolf_service, invoke, Args}, Output).
-
-parse_command_args_test() ->
-    Output = parse_mfa(loadtime, [{command, "loadtime.sh", ["http://aftnn.org"]}]),
-    Args = [filename:join([?PLUGIN_DIR, "loadtime", "loadtime.sh"]), ["http://aftnn.org"]],
-    ?assertEqual({rolf_service, invoke, Args}, Output).
-
-parse_nocommand_test() ->
-    ?assertEqual(undefined, parse_mfa(loadtime, [])).
-
 parse_test() ->
     Input = [{command, "loadtime.sh"},
              {frequency, 10},
@@ -158,4 +136,12 @@ parse_test() ->
                                     {colour, "#0091FF"}]}]}],
     Output = parse(loadtime, Input),
     ?assertEqual(loadtime, Output#service.name),
-    ?assertEqual(10, Output#service.frequency).
+    ?assertEqual(10, Output#service.frequency),
+    ?assertEqual("priv/plugin.d/loadtime/loadtime.sh", Output#service.command),
+    ?assertEqual(rolf_command, Output#service.module).
+
+parse_options_test() ->
+    Input = [{command, "loadtime.sh"},
+             {options, [{unit, mb}]}],
+    Output = parse(loadtime, Input),
+    ?assertEqual([{unit, mb}], Output#service.options).

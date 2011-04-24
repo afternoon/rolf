@@ -109,11 +109,38 @@ config() ->
         Else -> Else
     end.
 
-%% @doc Expand special all keyword in service configuration for a node.
-expand_snames(SNames, All) ->
-    case SNames of
+%% @doc Get node and service config from config file.
+collectors(Config) ->
+    AllSNames = rolf_plugin:list(),
+    ServiceConfig = parse_collector_config(Config),
+    [{N, expand(SNames, AllSNames)} || {N, SNames} <- ServiceConfig].
+
+%% @doc Parse recorder.config {service} definitions. Return list of
+%% {Node, Service} tuples.
+parse_collector_config(Config) ->
+    ServiceDefs = [{Name, Nodes} || {service, Name, Nodes, _Opts} <- Config],
+    parse_service_config(ServiceDefs, []).
+
+parse_service_config([{Name, Nodes}|Services], Acc) ->
+    Acc1 = parse_node_config(Name, Nodes, Acc),
+    parse_service_config(Services, Acc1).
+
+parse_node_config(Name, [Node|Nodes], Acc) ->
+    Acc1 = case proplists:get_value(Node, Acc) of
+        undefined ->
+            [{Node, [Name]}|Acc];
+        {Node, Names} ->
+            [{Node, [Name|Names]}|proplists:delete(Node, Acc)]
+    end,
+    parse_node_config(Name, Nodes, Acc1);
+parse_node_config(_Name, [], Acc) ->
+    Acc.
+
+%% @doc Expand special all keyword.
+expand(Some, All) ->
+    case Some of
         all -> All;
-        _ ->   SNames
+        _ ->   Some
     end.
 
 %% @doc Ping collector nodes and give them service configuration.
@@ -121,12 +148,6 @@ start_collectors(Collectors, RRD) ->
     LiveCollectors = connect_cluster(Collectors),
     error_logger:info_report([{where, {node(), rolf_recorder, start_collectors}}, {live_collectors, LiveCollectors}]),
     lists:foreach(fun({N, Ss}) -> start_services(N, Ss, RRD) end, LiveCollectors).
-
-%% @doc Get node and service config from config file.
-collectors(Config) ->
-    AllSNames = rolf_plugin:list(),
-    ServiceConfig = proplists:get_value(services, Config, [{node(), all}]),
-    [{N, expand_snames(SNames, AllSNames)} || {N, SNames} <- ServiceConfig].
 
 %% @doc Ping nodes that we're expected to record from.
 connect_cluster(Config) ->
@@ -143,7 +164,7 @@ start_services(Node, SNames, RRD) ->
 %% Tests
 %% ===================================================================
 
-expand_snames_test() ->
+expand_test() ->
     All = [disk, loadtime],
-    ?assertEqual([loadtime], expand_snames([loadtime], All)),
-    ?assertEqual([disk, loadtime], expand_snames(all, All)).
+    ?assertEqual([loadtime], expand([loadtime], All)),
+    ?assertEqual([disk, loadtime], expand(all, All)).
