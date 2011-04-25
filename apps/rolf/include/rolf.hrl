@@ -39,7 +39,7 @@
                   graph_title=undefined,
                   graph_vlabel=undefined,
                   metrics=undefined,
-                  options=undefined,
+                  config=undefined,
                   tref=undefined}).
 
 %% @doc Record for a single metric.

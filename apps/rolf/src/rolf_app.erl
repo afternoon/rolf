@@ -36,7 +36,7 @@ start() ->
 start(_StartType, _StartArgs) ->
     CResult = rolf_collector_sup:start_link(),
     RConfig = rolf_recorder:config(),
-    case rolf_recorder:is_recorder(RConfig, node()) of
+    case rolf_recorder:is_recorder(node(), RConfig) of
         true ->
             error_logger:info_report([{where, {node(), rolf_app, start}}, {is_recorder, true}]),
             rolf_recorder_sup:start_link(RConfig);

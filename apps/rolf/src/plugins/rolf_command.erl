@@ -36,8 +36,7 @@ start(_Service) -> ok.
 
 %% @doc Execute the command and return the parsed results.
 collect(Service) ->
-    Cmd = proplists:get_value(command, Service#service.options, []),
-    parse_output(Service#service.name, os:cmd(Cmd)).
+    parse_output(Service#service.name, os:cmd(Service#service.command)).
 
 %% @doc Stop collector.
 stop(_Service) -> ok.

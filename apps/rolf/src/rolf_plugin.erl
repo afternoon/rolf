@@ -22,11 +22,11 @@
 -module(rolf_plugin).
 
 %% API
--export([list/0, load/1]).
+-export([list/0, load/2]).
 
 -include("rolf.hrl").
 
--define(PLUGIN_DIR, filename:join("priv", "plugin.d")).
+-define(PLUGIN_DIR, filename:join(["apps", "rolf", "priv", "plugin.d"])).
 -define(PLUGIN_DEFAULT_FREQ, 10).
 -define(PLUGIN_DEFAULT_TIMEOUT_MULTIPLE, 3).
 -define(PLUGIN_DEFAULT_ARCHIVES, [{1, 360},      % 1hr of 10s averages
@@ -54,9 +54,9 @@ configfilename_to_atom(CFName) ->
     list_to_atom(filename:rootname(filename:basename(CFName))).
 
 %% @doc Load plugin config from file.
-load(Plugin) ->
+load(Plugin, Opts) ->
     {ok, Config} = file:consult(config_path(Plugin)),
-    parse(Plugin, Config).
+    parse(Plugin, propmerge(Config, Opts)).
 
 %% @doc Get path to a plugin's config file.
 config_path(Plugin) ->
@@ -90,7 +90,7 @@ parse(Plugin, Config) ->
         graph_title=proplists:get_value(graph_title, Config, atom_to_list(Plugin)),
         graph_vlabel=proplists:get_value(graph_vlabel, Config, ""),
         metrics=parse_metrics(Config),
-        options=proplists:get_value(options, Config, [])
+        config=Config
     }.
 
 %% @doc Parse config for a list of metrics into list of metric records.
@@ -109,6 +109,9 @@ parse_metric({Metric, MetricCfg}) ->
         max=proplists:get_value(max, MetricCfg, undefined),
         colour=proplists:get_value(colour, MetricCfg, undefined)
     }.
+
+propmerge(L1, L2) ->
+    dict:to_list(dict:merge(fun(_K, _V1, V2) -> V2 end, dict:from_list(L1), dict:from_list(L2))).
 
 %% ===================================================================
 %% Tests
@@ -142,6 +145,10 @@ parse_test() ->
 
 parse_options_test() ->
     Input = [{command, "loadtime.sh"},
-             {options, [{unit, mb}]}],
+             {unit, mb}],
     Output = parse(loadtime, Input),
-    ?assertEqual([{unit, mb}], Output#service.options).
+    ?assertEqual(mb, proplists:get_value(unit, Output#service.config)).
+
+propmerge_test() ->
+    ?assertEqual([{a, 1}, {b, 2}], propmerge([{a, 1}], [{b, 2}])),
+    ?assertEqual([{a, 2}], propmerge([{a, 1}], [{a, 2}])).

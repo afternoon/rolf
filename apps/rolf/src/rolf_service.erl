@@ -92,6 +92,7 @@ handle_cast(stop_emitting, Service) ->
 
 handle_cast(publish, Service) ->
     Module = Service#service.module,
+    error_logger:info_report([{where, {node(), rolf_service, handle_cast, publish}}, {service, Service}, {module, Module}]),
     Sample = apply(Module, collect, [Service]),
     rolf_recorder:store(Sample),
     {noreply, Service}.

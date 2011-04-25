@@ -27,7 +27,7 @@
 -include_lib("errd/include/errd.hrl").
 -include("rolf.hrl").
 
--define(RRD_DIR, filename:join("priv", "data")).
+-define(RRD_DIR, filename:join(["apps", "rolf", "priv", "data"])).
 -define(RRD_EXT, "rrd").
 
 %% ===================================================================

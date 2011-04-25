@@ -45,14 +45,16 @@ start_link() ->
 %% configuration.
 init([]) ->
     SupFlags = {simple_one_for_one, 1, 10},
-    ChildTemplate = {rolf_service, {rolf_service, start_link, []},
-                                   permanent, 2000, worker, [rolf_service]},
+    ChildTemplate = {rolf_service,
+                     {rolf_service, start_link, []},
+                     permanent, 2000, worker, [rolf_service]},
     {ok, {SupFlags, [ChildTemplate]}}.
 
 %% @doc Start a set of service process. Called by
 %% rolf_recorder:start_collectors.
 start_services([]) -> ok;
 start_services([S|Services]) ->
+    error_logger:info_report([{where, {node(), rolf_collector_sup, start_services}}, {service, S}]),
     supervisor:start_child(?MODULE, [S]),
     rolf_service:start_emitting(S#service.name),
     start_services(Services).

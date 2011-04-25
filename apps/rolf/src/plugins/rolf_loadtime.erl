@@ -41,9 +41,11 @@ start(_Service) ->
 %% @doc HTTP load time collector function for Rolf. Options should contain a key
 %% urls with value [{Name, Url}].
 collect(Service) ->
-    Options = Service#service.options,
-    UrlConfig = proplists:get_value(urls, Options, []),
-    time_urls(UrlConfig).
+    Config = Service#service.config,
+    UrlConfig = proplists:get_value(urls, Config, []),
+    Sample = time_urls(UrlConfig),
+    error_logger:info_report([{where, {node(), rolf_loadtime, collect}}, {sample, Sample}]),
+    Sample.
 
 %% @doc Stop collector.
 stop(_Service) ->

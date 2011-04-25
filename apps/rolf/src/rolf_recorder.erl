@@ -31,13 +31,13 @@
 
 -include("rolf.hrl").
 
--define(RECORDER_CONFIG_FILE, filename:join("priv", "recorder.config")).
+-define(RECORDER_CONFIG_FILE, filename:join(["apps", "rolf", "priv", "recorder.config"])).
 
 %% ===================================================================
 %% API
 %% ===================================================================
 
-is_recorder(Config, Node) ->
+is_recorder(Node, Config) ->
     Recorders = proplists:get_value(recorders, Config, [node()]),
     lists:member(Node, Recorders).
 
@@ -63,7 +63,7 @@ init([Config]) ->
     % start errd_server
     case errd_server:start_link() of
         {ok, RRD} ->
-            Collectors = collectors(Config),
+            Collectors = parse_collector_config(Config),
             start_collectors(Collectors, RRD),
             net_kernel:monitor_nodes(true),
             {ok, #recorder{collectors=Collectors, rrd=RRD}};
@@ -104,44 +104,33 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% @doc Load configuration of recorders, collectors and services.
 config() ->
-    case file:consult(?RECORDER_CONFIG_FILE) of
-        {ok, Config} -> Config;
-        Else -> Else
-    end.
-
-%% @doc Get node and service config from config file.
-collectors(Config) ->
-    AllSNames = rolf_plugin:list(),
-    ServiceConfig = parse_collector_config(Config),
-    [{N, expand(SNames, AllSNames)} || {N, SNames} <- ServiceConfig].
+    {ok, Config} = file:consult(?RECORDER_CONFIG_FILE),
+    Config.
 
 %% @doc Parse recorder.config {service} definitions. Return list of
 %% {Node, Service} tuples.
+%% @spec parse_collector_config([term()]) -> [{node(), [{ServiceName, Opts}]}]
 parse_collector_config(Config) ->
-    ServiceDefs = [{Name, Nodes} || {service, Name, Nodes, _Opts} <- Config],
+    ServiceDefs = [{Name, Nodes, Opts} || {service, Name, Nodes, Opts} <- Config],
     parse_service_config(ServiceDefs, []).
 
-parse_service_config([{Name, Nodes}|Services], Acc) ->
-    Acc1 = parse_node_config(Name, Nodes, Acc),
-    parse_service_config(Services, Acc1).
-
-parse_node_config(Name, [Node|Nodes], Acc) ->
-    Acc1 = case proplists:get_value(Node, Acc) of
-        undefined ->
-            [{Node, [Name]}|Acc];
-        {Node, Names} ->
-            [{Node, [Name|Names]}|proplists:delete(Node, Acc)]
-    end,
-    parse_node_config(Name, Nodes, Acc1);
-parse_node_config(_Name, [], Acc) ->
+parse_service_config([{Name, Nodes, Opts}|Services], Acc) ->
+    NodeList = if is_list(Nodes) -> Nodes; true -> [Nodes] end,
+    Acc1 = parse_node_config(Name, NodeList, Opts, Acc),
+    parse_service_config(Services, Acc1);
+parse_service_config([], Acc) ->
     Acc.
 
-%% @doc Expand special all keyword.
-expand(Some, All) ->
-    case Some of
-        all -> All;
-        _ ->   Some
-    end.
+parse_node_config(Name, [Node|Nodes], Opts, Acc) ->
+    Acc1 = case proplists:get_value(Node, Acc) of
+        undefined ->
+            [{Node, [{Name, Opts}]}|Acc];
+        {Node, ServiceDefs} ->
+            [{Node, [{Name, Opts}|ServiceDefs]}|proplists:delete(Node, Acc)]
+    end,
+    parse_node_config(Name, Nodes, Opts, Acc1);
+parse_node_config(_Name, [], _Opts, Acc) ->
+    Acc.
 
 %% @doc Ping collector nodes and give them service configuration.
 start_collectors(Collectors, RRD) ->
@@ -154,17 +143,8 @@ connect_cluster(Config) ->
     [{N, S} || {N, S} <- Config, net_adm:ping(N) =:= pong].
 
 %% @doc Start collectors on a set of nodes.
-start_services(Node, SNames, RRD) ->
-    error_logger:info_report([{where, {node(), rolf_recorder, start_services}}, {node, Node}, {snames, SNames}]),
-    Services = [rolf_plugin:load(SN) || SN <- SNames],
+start_services(Node, SDefs, RRD) ->
+    error_logger:info_report([{where, {node(), rolf_recorder, start_services}}, {node, Node}, {servicedefs, SDefs}, {rrd, RRD}]),
+    Services = [rolf_plugin:load(Name, Opts) || {Name, Opts} <- SDefs],
     lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, Node, S) end, Services),
     rpc:call(Node, rolf_collector_sup, start_services, [Services]).
-
-%% ===================================================================
-%% Tests
-%% ===================================================================
-
-expand_test() ->
-    All = [disk, loadtime],
-    ?assertEqual([loadtime], expand([loadtime], All)),
-    ?assertEqual([disk, loadtime], expand(all, All)).
