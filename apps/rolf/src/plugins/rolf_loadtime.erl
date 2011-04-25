@@ -43,9 +43,9 @@ start(_Service) ->
 collect(Service) ->
     Config = Service#service.config,
     UrlConfig = proplists:get_value(urls, Config, []),
-    Sample = time_urls(UrlConfig),
-    error_logger:info_report([{where, {node(), rolf_loadtime, collect}}, {sample, Sample}]),
-    Sample.
+    Values = time_urls(UrlConfig),
+    error_logger:info_report([{where, {node(), rolf_loadtime, collect}}, {values, Values}]),
+    #sample{node=node(), service=Service, values=Values}.
 
 %% @doc Stop collector.
 stop(_Service) ->

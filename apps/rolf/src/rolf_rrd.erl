@@ -36,7 +36,7 @@
 
 %% @doc Ensure data dir and RRD file for Service on Node exist.
 ensure(RRD, Node, Service) ->
-    Path = rrd_path(Node, Service#service.name),
+    Path = rrd_path(Node, Service),
     case filelib:ensure_dir(Path) of
         {error, Reason} ->
             error_logger:error_report([{where, {node(), rolf_rrd, ensure}}, {error, Reason}]),
@@ -82,7 +82,7 @@ string_format(Pattern, Values) ->
 %% @doc Create absolute path for RRD file for Service running on Node. A single
 %% RRD file contains values for multiple metrics (data sources).
 rrd_path(Node, Service) ->
-    Filename = string:join([atom_to_list(Service), ?RRD_EXT], "."),
+    Filename = string:join([atom_to_list(Service#service.name), ?RRD_EXT], "."),
     filename:join([?RRD_DIR, atom_to_list(Node), Filename]).
 
 %% @doc Generate command to create an RRD with a set of metrics.
