@@ -31,7 +31,7 @@
 
 -include("rolf.hrl").
 
--define(RECORDER_CONFIG_FILE, filename:join(["apps", "rolf", "priv", "recorder.config"])).
+-define(RECORDER_CONFIG_FILE, filename:join("etc", "recorder.config")).
 
 %% ===================================================================
 %% API
@@ -76,7 +76,6 @@ handle_call(_Req, _From, State) ->
   {reply, State}.
 
 handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
-    error_logger:info_report([{where, {node(), rolf_recorder, handle_cast, store}}, {sample, Sample}]),
     rolf_rrd:update(RRD, Sample),
     {noreply, State}.
 
@@ -144,7 +143,6 @@ connect_cluster(Config) ->
 
 %% @doc Start collectors on a set of nodes.
 start_services(Node, SDefs, RRD) ->
-    error_logger:info_report([{where, {node(), rolf_recorder, start_services}}, {node, Node}, {servicedefs, SDefs}, {rrd, RRD}]),
     Services = [rolf_plugin:load(Name, Opts) || {Name, Opts} <- SDefs],
     lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, Node, S) end, Services),
     rpc:call(Node, rolf_collector_sup, start_services, [Services]).

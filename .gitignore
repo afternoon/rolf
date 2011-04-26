@@ -4,7 +4,7 @@
 deps
 tags
 ebin
-apps/rolf/priv/data
+data
 .eunit
 logs
 TEST-*.xml

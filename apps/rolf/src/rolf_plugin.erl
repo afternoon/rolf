@@ -26,7 +26,7 @@
 
 -include("rolf.hrl").
 
--define(PLUGIN_DIR, filename:join(["apps", "rolf", "priv", "plugin.d"])).
+-define(PLUGIN_DIR, "plugins").
 -define(PLUGIN_DEFAULT_FREQ, 10).
 -define(PLUGIN_DEFAULT_TIMEOUT_MULTIPLE, 3).
 -define(PLUGIN_DEFAULT_ARCHIVES, [{1, 360},      % 1hr of 10s averages
@@ -118,10 +118,7 @@ propmerge(L1, L2) ->
 %% ===================================================================
 
 configfilename_to_atom_test() ->
-    ?assertEqual(disk, configfilename_to_atom("priv/plugin.d/disk/disk.config")).
-
-list_test() ->
-    ?assertEqual([disk, loadtime], list("../priv/plugin.d")).
+    ?assertEqual(disk, configfilename_to_atom("plugins/disk/disk.config")).
 
 config_path_test() ->
     Path = filename:join([?PLUGIN_DIR, "loadtime", "loadtime.config"]),
@@ -140,7 +137,7 @@ parse_test() ->
     Output = parse(loadtime, Input),
     ?assertEqual(loadtime, Output#service.name),
     ?assertEqual(10, Output#service.frequency),
-    ?assertEqual("priv/plugin.d/loadtime/loadtime.sh", Output#service.command),
+    ?assertEqual("plugins/loadtime/loadtime.sh", Output#service.command),
     ?assertEqual(rolf_command, Output#service.module).
 
 parse_options_test() ->

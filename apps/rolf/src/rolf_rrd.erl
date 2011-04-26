@@ -27,7 +27,7 @@
 -include_lib("errd/include/errd.hrl").
 -include("rolf.hrl").
 
--define(RRD_DIR, filename:join(["apps", "rolf", "priv", "data"])).
+-define(RRD_DIR, "data").
 -define(RRD_EXT, "rrd").
 
 %% ===================================================================
@@ -117,7 +117,7 @@ string_format_test() ->
     ?assertEqual("X:1:9.5:z", string_format("~s:~b:~.1f:~p", ["X", 1, 9.5, z])).
 
 rrd_path_test() ->
-    Path = rrd_path(frank@josie, loadtime),
+    Path = rrd_path(frank@josie, #service{name=loadtime}),
     ?assertEqual(filename:join([?RRD_DIR, "frank@josie", "loadtime.rrd"]), Path).
 
 make_rrd_create_test() ->
