@@ -1,7 +1,8 @@
 #!/bin/bash
 now=`date +%s`
 start=`expr $now - 3600`
-rrdtool graph rolf_loadtime.png -s $start -S 10 -w 800 -h 600 -l 0 -u 1000 -r \
+rrdtool graph /var/www/aftnn/stuff/rolf_loadtime.png -s $start -S 10 \
+        -w 1359 -h 851 -l 0 -u 1000 -r \
         -c BACK#191919 -c CANVAS#191919 -c SHADEA#191919 -c SHADEB#191919 -c FONT#ffffff \
         'DEF:bbc=data/rolf@127.0.0.1/loadtime.rrd:bbc:AVERAGE' \
         'DEF:guardian=data/rolf@127.0.0.1/loadtime.rrd:guardian:AVERAGE' \
@@ -23,4 +24,3 @@ rrdtool graph rolf_loadtime.png -s $start -S 10 -w 800 -h 600 -l 0 -u 1000 -r \
         'LINE:aarouteplanner#cc0066' \
         'LINE:ocado#0066cc' \
         'LINE:dailymail#66cc00'
-open rolf_loadtime.png
