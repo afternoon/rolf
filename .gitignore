@@ -5,6 +5,7 @@ deps
 tags
 ebin
 data
+log
 .eunit
 logs
 TEST-*.xml

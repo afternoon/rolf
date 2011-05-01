@@ -39,7 +39,7 @@ ensure(RRD, Node, Service) ->
     Path = rrd_path(Node, Service),
     case filelib:ensure_dir(Path) of
         {error, Reason} ->
-            error_logger:error_report([{where, {node(), rolf_rrd, ensure}}, {error, Reason}]),
+            log4erl:error("Couldn't create RRD dir ~p: ~p", [Path, Reason]),
             {error, Reason};
         ok ->
             case filelib:is_file(Path) of
@@ -52,7 +52,7 @@ ensure(RRD, Node, Service) ->
 %% {Name, Type} tuples, e.g. [{signups, counter}, {downloads, counter}]. Type
 %% must be one of gauge, counter, derive or absolute.
 create(RRD, Path, Service) ->
-    error_logger:info_report([{where, {node(), rolf_rrd, create}}, {path, Path}, {service, Service}]),
+    log4erl:debug("Creating RRD for ~p service at ~p", [Service, Path]),
     send_command(RRD, make_rrd_create(Path, Service)).
 
 %% @doc Update an RRD file with a new sample.
@@ -69,7 +69,7 @@ send_command(RRD, Cmd) ->
     FormattedCmd = errd_command:format(Cmd),
     case errd_server:raw(RRD, FormattedCmd) of
         {error, Reason} ->
-            error_logger:error_report([{where, {node(), rolf_rrd, send_command}}, {error, Reason}]),
+            log4erl:error("RRD error: ~p", [Reason]),
             {error, Reason};
         {ok, _Lines} ->
             ok

@@ -34,15 +34,19 @@ start() ->
     start(normal, undefined).
 
 start(_StartType, _StartArgs) ->
+    configure_logger(),
     CResult = rolf_collector_sup:start_link(),
     RConfig = rolf_recorder:config(),
     case rolf_recorder:is_recorder(node(), RConfig) of
         true ->
-            error_logger:info_report([{where, {node(), rolf_app, start}}, {is_recorder, true}]),
+            log4erl:info("~p is recorder", [node()]),
             rolf_recorder_sup:start_link(RConfig);
         _ ->
             CResult
     end.
+
+configure_logger() ->
+    log4erl:conf("etc/log4erl.conf").
 
 stop(_State) ->
     ok.

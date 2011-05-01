@@ -68,7 +68,7 @@ init([Config]) ->
             net_kernel:monitor_nodes(true),
             {ok, #recorder{collectors=Collectors, rrd=RRD}};
         Else ->
-            error_logger:error_report([{where, {node(), rolf_recorder, init}}, {errd_server_error, Else}]),
+            log4erl:error("ERRD server error: ~p", [Else]),
             {stop, Else}
     end.
 
@@ -76,24 +76,27 @@ handle_call(_Req, _From, State) ->
   {reply, State}.
 
 handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
+    Service = Sample#sample.service,
+    log4erl:debug("~p sample from ~p, values: ~p", [Service#service.name, Sample#sample.node, Sample#sample.values]),
     rolf_rrd:update(RRD, Sample),
     {noreply, State}.
 
 %% @doc Handle nodeup messages from monitoring nodes. Start services if the node
 %% is a collector.
 handle_info({nodeup, Node}, #recorder{collectors=Collectors, rrd=RRD}=State) ->
-    error_logger:info_report([{where, {node(), rolf_recorder, handle_info, nodeup}}, {node, Node}, {collectors, Collectors}]),
+    log4erl:info("Node ~p up", [Node]),
     case lists:keyfind(Node, 1, Collectors) of
         {N, Ss} -> start_services(N, Ss, RRD)
     end,
     {noreply, State};
 
 handle_info({nodedown, Node}, State) ->
-    error_logger:info_report([{where, {node(), rolf_recorder, handle_info, nodedown}}, {node, Node}]),
+    log4erl:info("Node ~p down", [Node]),
     {noreply, State}.
 
 terminate(_Reason, #recorder{rrd=RRD}) ->
-    errd_server:stop(RRD).
+    errd_server:stop(RRD),
+    log4erl:info("Recorder terminated").
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
@@ -134,7 +137,7 @@ parse_node_config(_Name, [], _Opts, Acc) ->
 %% @doc Ping collector nodes and give them service configuration.
 start_collectors(Collectors, RRD) ->
     LiveCollectors = connect_cluster(Collectors),
-    error_logger:info_report([{where, {node(), rolf_recorder, start_collectors}}, {live_collectors, LiveCollectors}]),
+    log4erl:info("Starting collectors: ~p", [LiveCollectors]),
     lists:foreach(fun({N, Ss}) -> start_services(N, Ss, RRD) end, LiveCollectors).
 
 %% @doc Ping nodes that we're expected to record from.

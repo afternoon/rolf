@@ -75,7 +75,7 @@ handle_call(_Req, _From, Service) ->
 handle_cast(start_emitting, Service) ->
     Name = Service#service.name,
     Freq = Service#service.frequency,
-    error_logger:info_report([{where, {node(), rolf_service, handle_cast, start_emitting}}, {name, Name}, {freq, Freq}]),
+    log4erl:info("~p started emitting (frequency ~p)", [Name, Freq]),
     apply(?MODULE, publish, [Name]),
     case timer:apply_interval(timer:seconds(Freq), ?MODULE, publish, [Name]) of
         {ok, TRef} ->
@@ -86,7 +86,7 @@ handle_cast(start_emitting, Service) ->
 
 handle_cast(stop_emitting, Service) ->
     Name = Service#service.name,
-    error_logger:info_report([{where, {node(), rolf_service, handle_cast, stop_emitting}}, {name, Name}]),
+    log4erl:info("~p stopped emitting", [Name]),
     timer:cancel(Service#service.tref),
     {noreply, Service#service{tref=undefined}};
 

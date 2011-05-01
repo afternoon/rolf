@@ -54,7 +54,7 @@ init([]) ->
 %% rolf_recorder:start_collectors.
 start_services([]) -> ok;
 start_services([S|Services]) ->
-    error_logger:info_report([{where, {node(), rolf_collector_sup, start_services}}, {service, S}]),
+    log4erl:info("Starting ~p service on ~p", [S#service.name, node()]),
     supervisor:start_child(?MODULE, [S]),
     rolf_service:start_emitting(S#service.name),
     start_services(Services).
