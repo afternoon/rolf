@@ -22,7 +22,7 @@
 -module(rolf_plugin).
 
 %% API
--export([list/0, load/2]).
+-export([list/0, load/3]).
 
 -include("rolf.hrl").
 
@@ -54,9 +54,9 @@ configfilename_to_atom(CFName) ->
     list_to_atom(filename:rootname(filename:basename(CFName))).
 
 %% @doc Load plugin config from file.
-load(Plugin, Opts) ->
+load(Plugin, Name, Opts) ->
     {ok, Config} = file:consult(config_path(Plugin)),
-    parse(Plugin, propmerge(Config, Opts)).
+    parse(Plugin, Name, propmerge(Config, Opts)).
 
 %% @doc Get path to a plugin's config file.
 config_path(Plugin) ->
@@ -78,10 +78,11 @@ external_path(Plugin, Cmd) ->
     filename:join([?PLUGIN_DIR, atom_to_list(Plugin), Cmd]).
 
 %% @doc Parse config file contents into a service record.
-parse(Plugin, Config) ->
+parse(Plugin, Name, Config) ->
     Freq = proplists:get_value(frequency, Config, ?PLUGIN_DEFAULT_FREQ),
     #service{
-        name=Plugin,
+        plugin=Plugin,
+        name=Name,
         module=proplists:get_value(module, Config, rolf_command),
         command=parse_command(Plugin, Config),
         frequency=Freq,
@@ -134,8 +135,9 @@ parse_test() ->
                                     {draw, areastack},
                                     {min, 0},
                                     {colour, "#0091FF"}]}]}],
-    Output = parse(loadtime, Input),
-    ?assertEqual(loadtime, Output#service.name),
+    Output = parse(loadtime, loadtime0, Input),
+    ?assertEqual(loadtime, Output#service.plugin),
+    ?assertEqual(loadtime0, Output#service.name),
     ?assertEqual(10, Output#service.frequency),
     ?assertEqual("plugins/loadtime/loadtime.sh", Output#service.command),
     ?assertEqual(rolf_command, Output#service.module).
@@ -143,7 +145,7 @@ parse_test() ->
 parse_options_test() ->
     Input = [{command, "loadtime.sh"},
              {unit, mb}],
-    Output = parse(loadtime, Input),
+    Output = parse(loadtime, loadtime0, Input),
     ?assertEqual(mb, proplists:get_value(unit, Output#service.config)).
 
 propmerge_test() ->

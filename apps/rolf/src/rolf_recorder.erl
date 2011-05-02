@@ -23,7 +23,7 @@
 -behaviour(gen_server).
 
 %% API
--export([config/0, is_recorder/2, start_link/1, stop/0, store/1]).
+-export([config/0, is_recorder/0, start_link/0, stop/0, store/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -31,19 +31,24 @@
 
 -include("rolf.hrl").
 
--define(RECORDER_CONFIG_FILE, filename:join("etc", "recorder.config")).
+-define(SERVICES_CONFIG_FILE, filename:join("etc", "services.config")).
 
 %% ===================================================================
 %% API
 %% ===================================================================
 
-is_recorder(Node, Config) ->
-    Recorders = proplists:get_value(recorders, Config, [node()]),
-    lists:member(Node, Recorders).
+%% @doc Return true if current node is a recorder.
+is_recorder() ->
+    case application:get_key(recorders) of
+        {ok, Recorders} ->
+            lists:member(node(), Recorders);
+        undefined ->
+            false
+    end.
 
 %% @doc Start a recorder on this node.
-start_link(Config) ->
-    gen_server:start_link({global, ?MODULE}, ?MODULE, [Config], []).
+start_link() ->
+    gen_server:start_link({global, ?MODULE}, ?MODULE, [], []).
 
 %% @doc Stop recorder.
 stop() ->
@@ -57,14 +62,15 @@ store(Sample) ->
 %% gen_server callbacks
 %% ===================================================================
 
-init([Config]) ->
+init([]) ->
     process_flag(trap_exit, true),
+    Config = rolf_recorder:config(),
 
     % start errd_server
     case errd_server:start_link() of
         {ok, RRD} ->
             Collectors = parse_collector_config(Config),
-            start_collectors(Collectors, RRD),
+            start_collectors(RRD, Collectors),
             net_kernel:monitor_nodes(true),
             {ok, #recorder{collectors=Collectors, rrd=RRD}};
         Else ->
@@ -82,11 +88,20 @@ handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
     {noreply, State}.
 
 %% @doc Handle nodeup messages from monitoring nodes. Start services if the node
-%% is a collector.
+%% is a collector and this is the highest priority live recorder (first in the
+%% list from app.config).
 handle_info({nodeup, Node}, #recorder{collectors=Collectors, rrd=RRD}=State) ->
     log4erl:info("Node ~p up", [Node]),
-    case lists:keyfind(Node, 1, Collectors) of
-        {N, Ss} -> start_services(N, Ss, RRD)
+    Primary = hd(live_recorders()),
+    case node() of
+        Primary ->
+            case lists:keyfind(Node, 1, Collectors) of
+                {N, Ss} ->
+                    log4erl:info("Configured node ~p", [Node]),
+                    start_services(N, Ss, RRD)
+            end;
+        _ ->
+            noop
     end,
     {noreply, State};
 
@@ -106,46 +121,57 @@ code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% @doc Load configuration of recorders, collectors and services.
 config() ->
-    {ok, Config} = file:consult(?RECORDER_CONFIG_FILE),
+    {ok, Config} = file:consult(?SERVICES_CONFIG_FILE),
     Config.
 
-%% @doc Parse recorder.config {service} definitions. Return list of
+%% @doc Parse node service definitions from services.config. Return list of
 %% {Node, Service} tuples.
-%% @spec parse_collector_config([term()]) -> [{node(), [{ServiceName, Opts}]}]
-parse_collector_config(Config) ->
-    ServiceDefs = [{Name, Nodes, Opts} || {service, Name, Nodes, Opts} <- Config],
-    parse_service_config(ServiceDefs, []).
+%% @spec parse_collector_config([term()]) -> [{node(), [{Plugin, Name, Opts}]}]
+parse_collector_config(Defs) ->
+    parse_collector_config(Defs, []).
 
-parse_service_config([{Name, Nodes, Opts}|Services], Acc) ->
-    NodeList = if is_list(Nodes) -> Nodes; true -> [Nodes] end,
-    Acc1 = parse_node_config(Name, NodeList, Opts, Acc),
-    parse_service_config(Services, Acc1);
-parse_service_config([], Acc) ->
-    Acc.
+%% @doc Parse node service defintions and populate accumulator. Don't use this
+%% function, call parse_collector_config/1.
+parse_collector_config([{node, Node, Services}|Defs], Acc) ->
+    Acc1 = [{Node, normalise_service_config(Services)}|Acc],
+    parse_collector_config(Defs, Acc1);
+parse_collector_config([_|Defs], Acc) ->
+    parse_collector_config(Defs, Acc).
 
-parse_node_config(Name, [Node|Nodes], Opts, Acc) ->
-    Acc1 = case proplists:get_value(Node, Acc) of
+%% @doc Normalise various short-hand versions of service definition accepted in
+%% services.config.
+normalise_service_config(Plugin) when is_atom(Plugin) ->
+    {Plugin, Plugin, []};
+normalise_service_config({Plugin}) ->
+    {Plugin, Plugin, []};
+normalise_service_config({Plugin, Opts}) when is_list(Opts) ->
+    {Plugin, Plugin, Opts};
+normalise_service_config({Plugin, Name}) when is_atom(Name) ->
+    {Plugin, Name, []};
+normalise_service_config({Plugin, Name, Opts}) when is_atom(Name) and is_list(Opts) ->
+    {Plugin, Name, Opts}.
+
+%% @doc Return a list of live recorders.
+live_recorders() ->
+    case application:get_key(recorders) of
+        {ok, Recorders} ->
+            [R || R <- Recorders, net_adm:ping(R) =:= pong];
         undefined ->
-            [{Node, [{Name, Opts}]}|Acc];
-        {Node, ServiceDefs} ->
-            [{Node, [{Name, Opts}|ServiceDefs]}|proplists:delete(Node, Acc)]
-    end,
-    parse_node_config(Name, Nodes, Opts, Acc1);
-parse_node_config(_Name, [], _Opts, Acc) ->
-    Acc.
+            undefined
+    end.
 
 %% @doc Ping collector nodes and give them service configuration.
-start_collectors(Collectors, RRD) ->
+start_collectors(RRD, Collectors) ->
     LiveCollectors = connect_cluster(Collectors),
     log4erl:info("Starting collectors: ~p", [LiveCollectors]),
-    lists:foreach(fun({N, Ss}) -> start_services(N, Ss, RRD) end, LiveCollectors).
+    lists:foreach(fun({N, Ss}) -> start_services(RRD, N, Ss) end, LiveCollectors).
 
 %% @doc Ping nodes that we're expected to record from.
 connect_cluster(Config) ->
     [{N, S} || {N, S} <- Config, net_adm:ping(N) =:= pong].
 
 %% @doc Start collectors on a set of nodes.
-start_services(Node, SDefs, RRD) ->
-    Services = [rolf_plugin:load(Name, Opts) || {Name, Opts} <- SDefs],
+start_services(RRD, Node, SDefs) ->
+    Services = [rolf_plugin:load(Name, Plugin, Opts) || {Name, Plugin, Opts} <- SDefs],
     lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, Node, S) end, Services),
     rpc:call(Node, rolf_collector_sup, start_services, [Services]).

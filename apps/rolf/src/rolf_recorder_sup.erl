@@ -23,7 +23,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_link/1]).
+-export([start_link/0]).
 
 %% supervisor callbacks
 -export([init/1]).
@@ -34,8 +34,8 @@
 %% API functions
 %% ===================================================================
 
-start_link(Config) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, [Config]).
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %% ===================================================================
 %% Supervisor callbacks
@@ -43,7 +43,7 @@ start_link(Config) ->
 
 %% @doc Supervisor configuration for rolf recorder. Start rolf_recorder
 %% gen_server which will start an errd_server.
-init([Config]) ->
-    Recorder = {rolf_recorder, {rolf_recorder, start_link, [Config]},
+init([]) ->
+    Recorder = {rolf_recorder, {rolf_recorder, start_link, []},
                                permanent, 2000, worker, [rolf_recorder]},
     {ok, {{one_for_one, 1, 10}, [Recorder]}}.

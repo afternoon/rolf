@@ -85,8 +85,7 @@ handle_cast(start_emitting, Service) ->
     end;
 
 handle_cast(stop_emitting, Service) ->
-    Name = Service#service.name,
-    log4erl:info("~p stopped emitting", [Name]),
+    log4erl:info("~p stopped emitting", [Service#service.name]),
     timer:cancel(Service#service.tref),
     {noreply, Service#service{tref=undefined}};
 
