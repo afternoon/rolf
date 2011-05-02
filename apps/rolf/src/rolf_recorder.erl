@@ -23,7 +23,8 @@
 -behaviour(gen_server).
 
 %% API
--export([config/0, is_recorder/0, start_link/0, stop/0, store/1]).
+-export([config/0, recorders/0, live_recorders/0, is_recorder/0, start_link/0,
+         stop/0, store/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -37,14 +38,20 @@
 %% API
 %% ===================================================================
 
+%% @doc Return list of recorders.
+recorders() ->
+    case application:get_key(recorders) of
+        {ok, Recorders} -> Recorders;
+        undefined -> []
+    end.
+
+%% @doc Return list of live recorders.
+live_recorders() ->
+    [R || R <- recorders(), net_adm:ping(R) =:= pong].
+
 %% @doc Return true if current node is a recorder.
 is_recorder() ->
-    case application:get_key(recorders) of
-        {ok, Recorders} ->
-            lists:member(node(), Recorders);
-        undefined ->
-            false
-    end.
+    lists:member(node(), recorders()).
 
 %% @doc Start a recorder on this node.
 start_link() ->
@@ -72,14 +79,16 @@ init([]) ->
             Collectors = parse_collector_config(Config),
             start_collectors(RRD, Collectors),
             net_kernel:monitor_nodes(true),
+            log4erl:info("Recorder started"),
             {ok, #recorder{collectors=Collectors, rrd=RRD}};
         Else ->
             log4erl:error("ERRD server error: ~p", [Else]),
             {stop, Else}
     end.
 
-handle_call(_Req, _From, State) ->
-  {reply, State}.
+handle_call(Req, _From, State) ->
+    log4erl:info("Unhandled call: ~p", [Req]),
+    {reply, State}.
 
 handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
     Service = Sample#sample.service,
@@ -105,6 +114,7 @@ handle_info({nodeup, Node}, #recorder{collectors=Collectors, rrd=RRD}=State) ->
     end,
     {noreply, State};
 
+%% @doc Handle nodedown messages from monitoring nodes.
 handle_info({nodedown, Node}, State) ->
     log4erl:info("Node ~p down", [Node]),
     {noreply, State}.
@@ -150,15 +160,6 @@ normalise_service_config({Plugin, Name}) when is_atom(Name) ->
     {Plugin, Name, []};
 normalise_service_config({Plugin, Name, Opts}) when is_atom(Name) and is_list(Opts) ->
     {Plugin, Name, Opts}.
-
-%% @doc Return a list of live recorders.
-live_recorders() ->
-    case application:get_key(recorders) of
-        {ok, Recorders} ->
-            [R || R <- Recorders, net_adm:ping(R) =:= pong];
-        undefined ->
-            undefined
-    end.
 
 %% @doc Ping collector nodes and give them service configuration.
 start_collectors(RRD, Collectors) ->

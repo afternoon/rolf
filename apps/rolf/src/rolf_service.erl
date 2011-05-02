@@ -65,11 +65,13 @@ publish(Name) ->
 %% publish them to the recorder.
 init([Service]) ->
     process_flag(trap_exit, true),
+    net_kernel:monitor_nodes(true),
     Module = Service#service.module,
     apply(Module, start, [Service]),
     {ok, Service}.
 
-handle_call(_Req, _From, Service) ->
+handle_call(Req, _From, Service) ->
+    log4erl:info("Unhandled call: ~p", [Req]),
     {reply, Service}.
 
 handle_cast(start_emitting, Service) ->
@@ -93,11 +95,33 @@ handle_cast(publish, Service) ->
     Module = Service#service.module,
     Sample = apply(Module, collect, [Service]),
     rolf_recorder:store(Sample),
+    {noreply, Service};
+
+handle_cast(Req, Service) ->
+    log4erl:info("Unhandled cast: ~p", [Req]),
     {noreply, Service}.
 
-handle_info(_Info, Ref) ->
-    {noreply, Ref}.
+%% @doc Handle nodeup messages from monitoring nodes.
+handle_info({nodeup, Node}, Service) ->
+    log4erl:info("Node ~p up", [Node]),
+    {noreply, Service};
 
+%% @doc Handle nodedown messages from monitoring nodes.
+handle_info({nodedown, Node}, Service) ->
+    log4erl:info("Node ~p down", [Node]),
+    case rolf_recorder:live_recorders() of
+        [] ->
+            {stop, recorder_down, Service};
+        _ ->
+            {noreply, Service}
+    end;
+
+%% @doc Handle nodedown messages from monitoring nodes.
+handle_info(Info, Service) ->
+    log4erl:info("Unhandled info: ~p", [Info]),
+    {noreply, Service}.
+
+%% @doc Terminate
 terminate(_Reason, Service) ->
     stop_emitting(Service),
     Module = Service#service.module,
