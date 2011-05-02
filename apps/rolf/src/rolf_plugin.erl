@@ -22,26 +22,18 @@
 -module(rolf_plugin).
 
 %% API
--export([list/0, load/3]).
+-export([list/0, load/2]).
 
 -include("rolf.hrl").
-
--define(PLUGIN_DIR, "plugins").
--define(PLUGIN_DEFAULT_FREQ, 10).
--define(PLUGIN_DEFAULT_TIMEOUT_MULTIPLE, 3).
--define(PLUGIN_DEFAULT_ARCHIVES, [{1, 360},      % 1hr of 10s averages
-                                  {30, 288},     % 1d of 5m averages
-                                  {180, 336},    % 7d of 30m averages
-                                  {8640, 365}]). % 1y of 1d averages
--define(PLUGIN_DEFAULT_TYPE, gauge).
--define(PLUGIN_DEFAULT_DRAW, line).
 
 %% ===================================================================
 %% Configuration
 %% ===================================================================
 
 %% @doc List available plugins.
-list() -> list(?PLUGIN_DIR).
+list() ->
+    {ok, PluginDir} = application:get_env(plugin_dir),
+    list(PluginDir).
 
 %% @doc List available plugins in Dir.
 list(Dir) ->
@@ -54,15 +46,35 @@ configfilename_to_atom(CFName) ->
     list_to_atom(filename:rootname(filename:basename(CFName))).
 
 %% @doc Load plugin config from file.
-load(Plugin, Name, Opts) ->
+load(Plugin, Opts) ->
     {ok, Config} = file:consult(config_path(Plugin)),
-    parse(Plugin, Name, propmerge(Config, Opts)).
+    parse(Plugin, propmerge(Config, Opts)).
 
 %% @doc Get path to a plugin's config file.
 config_path(Plugin) ->
     PluginStr = atom_to_list(Plugin),
     CfgName = string:join([PluginStr, "config"], "."),
-    filename:join([?PLUGIN_DIR, PluginStr, CfgName]).
+    {ok, PluginDir} = application:get_env(plugin_dir),
+    filename:join([PluginDir, PluginStr, CfgName]).
+
+%% @doc Parse config file contents into a service record.
+parse(Plugin, Config) ->
+    {ok, PluginDefaultFreq} = application:get_env(plugin_default_freq),
+    {ok, PluginDefaultTimeoutMultiple} = application:get_env(plugin_default_timeout_multiple),
+    {ok, PluginDefaultArchives} = application:get_env(plugin_default_archives),
+    Freq = proplists:get_value(frequency, Config, PluginDefaultFreq),
+    #service{
+        plugin=Plugin,
+        module=proplists:get_value(module, Config, rolf_command),
+        command=parse_command(Plugin, Config),
+        frequency=Freq,
+        timeout=proplists:get_value(timeout, Config, Freq * PluginDefaultTimeoutMultiple),
+        archives=proplists:get_value(archives, Config, PluginDefaultArchives),
+        graph_title=proplists:get_value(graph_title, Config, atom_to_list(Plugin)),
+        graph_vlabel=proplists:get_value(graph_vlabel, Config, ""),
+        metrics=parse_metrics(Config),
+        config=Config
+    }.
 
 %% @doc Parse the command for this plugin.
 parse_command(Plugin, Config) ->
@@ -75,24 +87,8 @@ parse_command(Plugin, Config) ->
 
 %% @doc Return the full path to an external program.
 external_path(Plugin, Cmd) ->
-    filename:join([?PLUGIN_DIR, atom_to_list(Plugin), Cmd]).
-
-%% @doc Parse config file contents into a service record.
-parse(Plugin, Name, Config) ->
-    Freq = proplists:get_value(frequency, Config, ?PLUGIN_DEFAULT_FREQ),
-    #service{
-        plugin=Plugin,
-        name=Name,
-        module=proplists:get_value(module, Config, rolf_command),
-        command=parse_command(Plugin, Config),
-        frequency=Freq,
-        timeout=proplists:get_value(timeout, Config, Freq * ?PLUGIN_DEFAULT_TIMEOUT_MULTIPLE),
-        archives=proplists:get_value(archives, Config, ?PLUGIN_DEFAULT_ARCHIVES),
-        graph_title=proplists:get_value(graph_title, Config, atom_to_list(Plugin)),
-        graph_vlabel=proplists:get_value(graph_vlabel, Config, ""),
-        metrics=parse_metrics(Config),
-        config=Config
-    }.
+    {ok, PluginDir} = application:get_env(plugin_dir),
+    filename:join([PluginDir, atom_to_list(Plugin), Cmd]).
 
 %% @doc Parse config for a list of metrics into list of metric records.
 parse_metrics(Config) ->
@@ -101,11 +97,13 @@ parse_metrics(Config) ->
 
 %% @doc Parse config for a single metric into a metric record.
 parse_metric({Metric, MetricCfg}) ->
+    {ok, PluginDefaultType} = application:get_env(plugin_default_type),
+    {ok, PluginDefaultDraw} = application:get_env(plugin_default_draw),
     #metric{
         name=Metric,
         label=proplists:get_value(label, MetricCfg, ""),
-        type=proplists:get_value(type, MetricCfg, ?PLUGIN_DEFAULT_TYPE),
-        draw=proplists:get_value(draw, MetricCfg, ?PLUGIN_DEFAULT_DRAW),
+        type=proplists:get_value(type, MetricCfg, PluginDefaultType),
+        draw=proplists:get_value(draw, MetricCfg, PluginDefaultDraw),
         min=proplists:get_value(min, MetricCfg, undefined),
         max=proplists:get_value(max, MetricCfg, undefined),
         colour=proplists:get_value(colour, MetricCfg, undefined)
@@ -122,7 +120,8 @@ configfilename_to_atom_test() ->
     ?assertEqual(disk, configfilename_to_atom("plugins/disk/disk.config")).
 
 config_path_test() ->
-    Path = filename:join([?PLUGIN_DIR, "loadtime", "loadtime.config"]),
+    {ok, PluginDir} = application:get_env(plugin_dir),
+    Path = filename:join([PluginDir, "loadtime", "loadtime.config"]),
     ?assertEqual(Path, config_path(loadtime)).
 
 parse_test() ->
@@ -135,9 +134,9 @@ parse_test() ->
                                     {draw, areastack},
                                     {min, 0},
                                     {colour, "#0091FF"}]}]}],
-    Output = parse(loadtime, loadtime0, Input),
+    Output = parse(loadtime, Input),
     ?assertEqual(loadtime, Output#service.plugin),
-    ?assertEqual(loadtime0, Output#service.name),
+    ?assertEqual(undefined, Output#service.name),
     ?assertEqual(10, Output#service.frequency),
     ?assertEqual("plugins/loadtime/loadtime.sh", Output#service.command),
     ?assertEqual(rolf_command, Output#service.module).
@@ -145,7 +144,7 @@ parse_test() ->
 parse_options_test() ->
     Input = [{command, "loadtime.sh"},
              {unit, mb}],
-    Output = parse(loadtime, loadtime0, Input),
+    Output = parse(loadtime, Input),
     ?assertEqual(mb, proplists:get_value(unit, Output#service.config)).
 
 propmerge_test() ->

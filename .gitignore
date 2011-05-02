@@ -2,6 +2,7 @@
 *.sw[nop]
 .eunit
 .DS_Store
+app.config
 data
 deps
 ebin

@@ -27,9 +27,6 @@
 -include_lib("errd/include/errd.hrl").
 -include("rolf.hrl").
 
--define(RRD_DIR, "data").
--define(RRD_EXT, "rrd").
-
 %% ===================================================================
 %% API
 %% ===================================================================
@@ -69,7 +66,7 @@ send_command(RRD, Cmd) ->
     FormattedCmd = errd_command:format(Cmd),
     case errd_server:raw(RRD, FormattedCmd) of
         {error, Reason} ->
-            log4erl:error("RRD error: ~p", [Reason]),
+            log4erl:error("errd_server error: ~p", [Reason]),
             {error, Reason};
         {ok, _Lines} ->
             ok
@@ -82,8 +79,10 @@ string_format(Pattern, Values) ->
 %% @doc Create absolute path for RRD file for Service running on Node. A single
 %% RRD file contains values for multiple metrics (data sources).
 rrd_path(Node, Service) ->
-    Filename = string:join([atom_to_list(Service#service.name), ?RRD_EXT], "."),
-    filename:join([?RRD_DIR, atom_to_list(Node), Filename]).
+    {ok, RRDExt} = application:get_env(rrd_ext),
+    Filename = string:join([atom_to_list(Service#service.name), RRDExt], "."),
+    {ok, RRDDir} = application:get_env(rrd_dir),
+    filename:join([RRDDir, atom_to_list(Node), Filename]).
 
 %% @doc Generate command to create an RRD with a set of metrics.
 make_rrd_create(Path, #service{frequency=Frequency, timeout=Timeout,
@@ -117,20 +116,23 @@ string_format_test() ->
     ?assertEqual("X:1:9.5:z", string_format("~s:~b:~.1f:~p", ["X", 1, 9.5, z])).
 
 rrd_path_test() ->
+    {ok, RRDDir} = application:get_env(rrd_dir),
     Path = rrd_path(frank@josie, #service{name=loadtime}),
-    ?assertEqual(filename:join([?RRD_DIR, "frank@josie", "loadtime.rrd"]), Path).
+    ?assertEqual(filename:join([RRDDir, "frank@josie", "loadtime.rrd"]), Path).
 
 make_rrd_create_test() ->
-    Path = filename:join([?RRD_DIR, "frank@josie", "loadtime.rrd"]),
+    {ok, RRDDir} = application:get_env(rrd_dir),
+    Path = filename:join([RRDDir, "frank@josie", "loadtime.rrd"]),
     DSs = [#rrd_ds{name="loadtime", type=gauge, args="900:U:U"}],
     RRAs = [#rrd_rra{cf=average, args="0.5:1:60"}],
     Metrics = [#metric{name=loadtime, type=gauge}],
     Create = make_rrd_create(Path, #service{frequency=60, timeout=900,
-            archives=[{1, 60}], metrics=Metrics}),
+                                            archives=[{1, 60}], metrics=Metrics}),
     ?assertEqual(#rrd_create{file=Path, step=60, ds_defs=DSs, rra_defs=RRAs}, Create).
 
 make_update_test() ->
-    Path = filename:join([?RRD_DIR, "frank@josie", "loadtime.rrd"]),
+    {ok, RRDDir} = application:get_env(rrd_dir),
+    Path = filename:join([RRDDir, "frank@josie", "loadtime.rrd"]),
     Update = make_update(Path, [{loadtime, 0.99}]),
     DSUpdates = [#rrd_ds_update{name="loadtime", value=0.99}],
     Expected = #rrd_update{file=Path, updates=DSUpdates},

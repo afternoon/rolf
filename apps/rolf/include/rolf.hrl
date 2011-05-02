@@ -32,6 +32,7 @@
 %% @doc State record for Rolf services, which contains multiple metrics.
 -record(service, {name=undefined,
                   plugin=undefined,
+                  recorders=undefined,
                   module=undefined,
                   command=undefined,
                   frequency=undefined,

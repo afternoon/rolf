@@ -20,6 +20,7 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_recorder).
+
 -behaviour(gen_server).
 
 %% API
@@ -32,17 +33,27 @@
 
 -include("rolf.hrl").
 
--define(SERVICES_CONFIG_FILE, filename:join("etc", "services.config")).
-
 %% ===================================================================
 %% API
 %% ===================================================================
 
+%% @doc Load configuration of recorders, collectors and services.
+config() ->
+    {ok, ConfigFilename} = application:get_env(services_config),
+    log4erl:debug("Loading config from ~p", [ConfigFilename]),
+    case catch file:consult(ConfigFilename) of
+        {ok, Config} ->
+            log4erl:debug("Config: ~p", [Config]),
+            Config;
+        Else ->
+            log4erl:error("Couldn't parse config file ~p: ~p", [ConfigFilename, Else])
+    end.
+
 %% @doc Return list of recorders.
 recorders() ->
-    case application:get_key(recorders) of
+    case application:get_env(recorders) of
         {ok, Recorders} -> Recorders;
-        undefined -> []
+        _ -> []
     end.
 
 %% @doc Return list of live recorders.
@@ -76,25 +87,33 @@ init([]) ->
     % start errd_server
     case errd_server:start_link() of
         {ok, RRD} ->
+            log4erl:debug("Started errd_server"),
             Collectors = parse_collector_config(Config),
+            log4erl:debug("Collectors: ~p", [Collectors]),
             start_collectors(RRD, Collectors),
             net_kernel:monitor_nodes(true),
             log4erl:info("Recorder started"),
             {ok, #recorder{collectors=Collectors, rrd=RRD}};
         Else ->
-            log4erl:error("ERRD server error: ~p", [Else]),
+            log4erl:error("Error starting errd_server: ~p", [Else]),
             {stop, Else}
     end.
 
-handle_call(Req, _From, State) ->
-    log4erl:info("Unhandled call: ~p", [Req]),
-    {reply, State}.
+%% @doc Log unhandled calls.
+handle_call(Req, From, Service) ->
+    log4erl:debug("Unhandled call from ~p: ~p", [From, Req]),
+    {reply, Service}.
 
 handle_cast({store, Sample}, #recorder{rrd=RRD}=State) ->
     Service = Sample#sample.service,
     log4erl:debug("~p sample from ~p, values: ~p", [Service#service.name, Sample#sample.node, Sample#sample.values]),
     rolf_rrd:update(RRD, Sample),
-    {noreply, State}.
+    {noreply, State};
+
+%% @doc Log unhandled casts.
+handle_cast(Req, Service) ->
+    log4erl:debug("Unhandled cast: ~p", [Req]),
+    {noreply, Service}.
 
 %% @doc Handle nodeup messages from monitoring nodes. Start services if the node
 %% is a collector and this is the highest priority live recorder (first in the
@@ -117,22 +136,22 @@ handle_info({nodeup, Node}, #recorder{collectors=Collectors, rrd=RRD}=State) ->
 %% @doc Handle nodedown messages from monitoring nodes.
 handle_info({nodedown, Node}, State) ->
     log4erl:info("Node ~p down", [Node]),
-    {noreply, State}.
+    {noreply, State};
+
+%% @doc Log unhandled info messages.
+handle_info(Info, Service) ->
+    log4erl:debug("Unhandled info: ~p", [Info]),
+    {noreply, Service}.
 
 terminate(_Reason, #recorder{rrd=RRD}) ->
     errd_server:stop(RRD),
-    log4erl:info("Recorder terminated").
+    log4erl:info("Recorder stopped").
 
 code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% ===================================================================
 %% Utility functions
 %% ===================================================================
-
-%% @doc Load configuration of recorders, collectors and services.
-config() ->
-    {ok, Config} = file:consult(?SERVICES_CONFIG_FILE),
-    Config.
 
 %% @doc Parse node service definitions from services.config. Return list of
 %% {Node, Service} tuples.
@@ -143,10 +162,12 @@ parse_collector_config(Defs) ->
 %% @doc Parse node service defintions and populate accumulator. Don't use this
 %% function, call parse_collector_config/1.
 parse_collector_config([{node, Node, Services}|Defs], Acc) ->
-    Acc1 = [{Node, normalise_service_config(Services)}|Acc],
-    parse_collector_config(Defs, Acc1);
+    NormalisedServices = [normalise_service_config(S) || S <- Services],
+    parse_collector_config(Defs, [{Node, NormalisedServices}|Acc]);
 parse_collector_config([_|Defs], Acc) ->
-    parse_collector_config(Defs, Acc).
+    parse_collector_config(Defs, Acc);
+parse_collector_config([], Acc) ->
+    Acc.
 
 %% @doc Normalise various short-hand versions of service definition accepted in
 %% services.config.
@@ -173,6 +194,11 @@ connect_cluster(Config) ->
 
 %% @doc Start collectors on a set of nodes.
 start_services(RRD, Node, SDefs) ->
-    Services = [rolf_plugin:load(Name, Plugin, Opts) || {Name, Plugin, Opts} <- SDefs],
+    Recs = live_recorders(),
+    Services = [load_service(Plugin, Name, Opts, Recs) || {Plugin, Name, Opts} <- SDefs],
     lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, Node, S) end, Services),
     rpc:call(Node, rolf_collector_sup, start_services, [Services]).
+
+load_service(Name, Plugin, Opts, Recs) ->
+    S = rolf_plugin:load(Plugin, Opts),
+    S#service{name=Name, recorders=Recs}.
