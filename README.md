@@ -10,8 +10,9 @@ Overview
 
 - Monitoring and graphing tool like Munin or collectd.
 - Written in Erlang.
-- Asynchronous data gathering.
 - Sample frequency down to 1 second, configured per plug-in.
+- Record data on multiple nodes in parallel.
+- Asynchronous data gathering.
 - HTTP interface for HTML, graphs and data via JSON.
 - Writing plug-ins is simple. Plug-ins are kept resident between updates, as in
   collectd.
@@ -20,15 +21,16 @@ Overview
 Getting started
 ---------------
 
-Configure which node should be master and which services should run on which
-nodes in `priv/recorder.config`.
+Configure which node(s) should be recorders in etc/app.config.
 
-    {recorders, [rolf@john]}.
+    [{rolf, [recorders, [rolf@john]]}].
 
-    {services, [{rolf@john, all},
-                {rolf@paul, [disk]},
-                {rolf@george, [disk]},
-                {rolf@ringo, [disk]}]}.
+Configure which services should run on which nodes in `etc/services.config`.
+
+    {node, rolf@john, [disk, loadtime]}.
+    {node, rolf@paul, [disk]}.
+    {node, rolf@george, [disk]}.
+    {node, rolf@ringo, [disk]}.
 
 Start Rolf on each machine.
 
@@ -48,14 +50,16 @@ Architecture
 - A node manager process starts services and they start emitting samples.
 - Services can be implemented as Erlang functions, external commands or external
   daemons.
-- Services collect samples and send them to the recorder.
+- Services collect samples and send them to all live recorders.
+- Recorders and collectors can be added and removed from the cluster
+  dynamically.
 
 The supervision tree of an Rolf node looks like this (node has recorder):
 
     rolf_sup
     ├── rolf_recorder
     │   └── errd_server
-    └── rolf_service_sup
+    └── rolf_collector_sup
         ├── rolf_service (svc1)
         └── rolf_service (svc2)
             └── rolf_external
@@ -65,13 +69,13 @@ Plugins
 
 Plugins add additional collectors to Rolf.
 
-- Plugins live in app/rolf/priv/plugin.d.
+- Plugins live in `plugins`.
 - A plugin has a config file, see
-  `app/rolf/priv/plugin.d/loadtime/loadtime.config` for an example.
-- Plugin config includes an options key. Options can be overridden per-site by
-  customising `recorder.config`.
+  `plugins/loadtime/loadtime.config` for an example.
+- Plugin config can be overridden per-site by customising `services.config`.
 - Plugins can use an Erlang module, a command or a daemon to collect data.
-- Plugin collectors written in Erlang should use the `rolf_collector` behaviour.
+- Plugin collectors written in Erlang should implement the `rolf_collector`
+  behaviour.
 - The `collect/1` function should capture data. The argument, `Service`, is a
   `service` record, which includes lots of useful info such as name and options
   (see `apps/rolf/include/rolf.hrl` for more info).

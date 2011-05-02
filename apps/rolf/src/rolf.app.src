@@ -1,3 +1,4 @@
+%% vim: ft=erlang
 %% @doc Rolf app config.
 %% @author Ben Godfrey <ben@ben2.com> [http://aftnn.org/]
 %% @copyright 2011 Ben Godfrey
@@ -21,8 +22,21 @@
 
 {application, rolf, [
   {description, "System monitoring and graphing tool like Munin or collectd"},
-  {vsn, "1"},
+  {vsn, "0.1"},
   {registered, []},
   {applications, [kernel, stdlib, log4erl]},
   {mod, {rolf_app, []}},
-  {env, []}]}.
+  {env, [{recorders, []},
+         {services_config, "etc/services.config"},
+         {log4erl_config, "etc/log4erl.conf"},
+         {plugin_dir, "plugins"},
+         {plugin_default_freq, 10},
+         {plugin_default_timeout_multiple, 3},
+         {plugin_default_archives, [{1, 360},      % 1hr of 10s averages
+                                    {30, 288},     % 1d of 5m averages
+                                    {180, 336},    % 7d of 30m averages
+                                    {8640, 365}]}, % 1y of 1d averages
+         {plugin_default_type, gauge},
+         {plugin_default_draw, line},
+         {rrd_dir, "data"},
+         {rrd_ext, "rrd"}]}]}.

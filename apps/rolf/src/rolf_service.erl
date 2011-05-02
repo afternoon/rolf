@@ -21,6 +21,7 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 -module(rolf_service).
+
 -behaviour(gen_server).
 
 %% API
@@ -66,12 +67,12 @@ publish(Name) ->
 init([Service]) ->
     process_flag(trap_exit, true),
     net_kernel:monitor_nodes(true),
-    Module = Service#service.module,
-    apply(Module, start, [Service]),
+    apply(Service#service.module, start, [Service]),
     {ok, Service}.
 
-handle_call(Req, _From, Service) ->
-    log4erl:info("Unhandled call: ~p", [Req]),
+%% @doc Log unhandled calls.
+handle_call(Req, From, Service) ->
+    log4erl:debug("Unhandled call from ~p: ~p", [From, Req]),
     {reply, Service}.
 
 handle_cast(start_emitting, Service) ->
@@ -92,33 +93,41 @@ handle_cast(stop_emitting, Service) ->
     {noreply, Service#service{tref=undefined}};
 
 handle_cast(publish, Service) ->
-    Module = Service#service.module,
-    Sample = apply(Module, collect, [Service]),
-    rolf_recorder:store(Sample),
+    Sample = apply(Service#service.module, collect, [Service]),
+    send(Service#service.recorders, Sample),
     {noreply, Service};
 
+%% @doc Log unhandled casts.
 handle_cast(Req, Service) ->
-    log4erl:info("Unhandled cast: ~p", [Req]),
+    log4erl:debug("Unhandled cast: ~p", [Req]),
     {noreply, Service}.
 
 %% @doc Handle nodeup messages from monitoring nodes.
 handle_info({nodeup, Node}, Service) ->
-    log4erl:info("Node ~p up", [Node]),
-    {noreply, Service};
-
-%% @doc Handle nodedown messages from monitoring nodes.
-handle_info({nodedown, Node}, Service) ->
-    log4erl:info("Node ~p down", [Node]),
-    case rolf_recorder:live_recorders() of
-        [] ->
-            {stop, recorder_down, Service};
+    case lists:member(Node, rolf_recorder:recorders()) of
+        true ->
+            log4erl:info("Recorder ~p up", [Node]),
+            OldRecs = Service#service.recorders,
+            {noreply, Service#service{recorders=[Node|OldRecs]}};
         _ ->
             {noreply, Service}
     end;
 
 %% @doc Handle nodedown messages from monitoring nodes.
+handle_info({nodedown, Node}, Service) ->
+    Live = rolf_recorder:live_recorders(),
+    case Live of
+        [] ->
+            log4erl:info("Recorder ~p down, exiting", [Node]),
+            {stop, no_recorders, Service};
+        _ ->
+            log4erl:info("Recorder ~p down", [Node]),
+            {noreply, Service#service{recorders=Live}}
+    end;
+
+%% @doc Log unhandled info messages.
 handle_info(Info, Service) ->
-    log4erl:info("Unhandled info: ~p", [Info]),
+    log4erl:debug("Unhandled info: ~p", [Info]),
     {noreply, Service}.
 
 %% @doc Terminate
@@ -140,9 +149,10 @@ server_name(Name) when is_atom(Name) ->
 server_name(#service{name=Name}) ->
     server_name(Name).
 
-%% ===================================================================
-%% Command functions
-%% ===================================================================
+%% @doc Send sample to all live recorders.
+send(Recorders, Sample) ->
+    lists:foreach(fun(R) -> rpc:call(R, rolf_recorder, store, [Sample]) end,
+        Recorders).
 
 %% ===================================================================
 %% Tests

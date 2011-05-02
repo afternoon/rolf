@@ -26,8 +26,6 @@
 %% Application callbacks
 -export([start/0, start/2, stop/1]).
 
--define(LOG4ERL_CONFIG_FILE, "etc/log4erl.conf").
-
 %% ===================================================================
 %% Application callbacks
 %% ===================================================================
@@ -37,13 +35,14 @@ start() ->
 
 start(_StartType, _StartArgs) ->
     configure_logger(),
+    log4erl:info("Starting"),
     CResult = rolf_collector_sup:start_link(),
     case rolf_recorder:is_recorder() of
         true ->
-            log4erl:info("~p is recorder", [node()]),
+            log4erl:info("~p is a recorder", [node()]),
             rolf_recorder_sup:start_link();
         _ ->
-            log4erl:info("~p is collector only", [node()]),
+            log4erl:info("~p is a collector only", [node()]),
             announce_collector(),
             CResult
     end.
@@ -57,13 +56,9 @@ stop(_State) ->
 
 %% @doc Load log4erl configuration.
 configure_logger() ->
-    log4erl:conf(?LOG4ERL_CONFIG_FILE).
+    {ok, ConfigFilename} = application:get_env(log4erl_config),
+    log4erl:conf(ConfigFilename).
 
 %% @doc Announce collector start to recorders.
 announce_collector() ->
-    case application:get_key(recorders) of
-        {ok, Recorders} ->
-            lists:foreach(fun net_adm:ping/1, Recorders);
-        undefined ->
-            false
-    end.
+    lists:foreach(fun net_adm:ping/1, rolf_recorder:recorders()).
