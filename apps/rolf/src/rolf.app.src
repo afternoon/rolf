@@ -24,7 +24,7 @@
   {description, "System monitoring and graphing tool like Munin or collectd"},
   {vsn, "0.1"},
   {registered, []},
-  {applications, [kernel, stdlib, log4erl]},
+  {applications, [kernel, stdlib, sasl, log4erl]},
   {mod, {rolf_app, []}},
   {env, [{recorders, []},
          {services_config, "etc/services.config"},

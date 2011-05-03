@@ -49,7 +49,7 @@ ensure(RRD, Node, Service) ->
 %% {Name, Type} tuples, e.g. [{signups, counter}, {downloads, counter}]. Type
 %% must be one of gauge, counter, derive or absolute.
 create(RRD, Path, Service) ->
-    log4erl:debug("Creating RRD for ~p service at ~p", [Service, Path]),
+    log4erl:info("Creating ~p", [Path]),
     send_command(RRD, make_rrd_create(Path, Service)).
 
 %% @doc Update an RRD file with a new sample.
@@ -63,6 +63,7 @@ update(RRD, #sample{node=Node, service=Service, values=Values}) ->
 
 %% @doc Send command to RRD server, return ok or {error, Reason}.
 send_command(RRD, Cmd) ->
+    log4erl:debug("RRD command: ~p", [Cmd]),
     FormattedCmd = errd_command:format(Cmd),
     case errd_server:raw(RRD, FormattedCmd) of
         {error, Reason} ->

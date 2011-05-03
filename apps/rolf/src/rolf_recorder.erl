@@ -89,7 +89,6 @@ init([]) ->
         {ok, RRD} ->
             log4erl:debug("Started errd_server"),
             Collectors = parse_collector_config(Config),
-            log4erl:debug("Collectors: ~p", [Collectors]),
             start_collectors(RRD, Collectors),
             net_kernel:monitor_nodes(true),
             log4erl:info("Recorder started"),
@@ -185,7 +184,7 @@ normalise_service_config({Plugin, Name, Opts}) when is_atom(Name) and is_list(Op
 %% @doc Ping collector nodes and give them service configuration.
 start_collectors(RRD, Collectors) ->
     LiveCollectors = connect_cluster(Collectors),
-    log4erl:info("Starting collectors: ~p", [LiveCollectors]),
+    log4erl:info("Starting collectors"),
     lists:foreach(fun({N, Ss}) -> start_services(RRD, N, Ss) end, LiveCollectors).
 
 %% @doc Ping nodes that we're expected to record from.
@@ -199,6 +198,6 @@ start_services(RRD, Node, SDefs) ->
     lists:foreach(fun(S) -> rolf_rrd:ensure(RRD, Node, S) end, Services),
     rpc:call(Node, rolf_collector_sup, start_services, [Services]).
 
-load_service(Name, Plugin, Opts, Recs) ->
+load_service(Plugin, Name, Opts, Recs) ->
     S = rolf_plugin:load(Plugin, Opts),
     S#service{name=Name, recorders=Recs}.

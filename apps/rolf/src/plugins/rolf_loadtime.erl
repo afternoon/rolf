@@ -26,7 +26,7 @@
 -export([start/1, collect/1, stop/1]).
 
 %% helpers
--export([time_urls/1, time_many/1, time_one/1]).
+-export([time_url/1]).
 
 -include("rolf.hrl").
 
@@ -42,8 +42,8 @@ start(_Service) ->
 %% urls with value [{Name, Url}].
 collect(Service) ->
     Config = Service#service.config,
-    UrlConfig = proplists:get_value(urls, Config, []),
-    Values = time_urls(UrlConfig),
+    Url = proplists:get_value(url, Config, []),
+    Values = [{loadtime, time_url(Url)}],
     #sample{node=node(), service=Service, values=Values}.
 
 %% @doc Stop collector.
@@ -54,16 +54,7 @@ stop(_Service) ->
 %% Helper functions
 %% ===================================================================
 
-%% @doc Time a set of urls. UrlConfig is [{Name, Url}] format.
-time_urls(UrlConfig) ->
-    {Names, Urls} = lists:unzip(UrlConfig),
-    lists:zip(Names, time_many(Urls)).
-
-%% @doc Time loading multiple urls. Run tests in parallel using plists.
-time_many(Urls) ->
-    plists:map(fun time_one/1, Urls).
-
 %% @doc Return how long it took to load resource at Url in milliseconds.
-time_one(Url) ->
+time_url(Url) ->
     {T, _} = timer:tc(httpc, request, [head, {Url, []}, [], []]),
     round(T / 1000).

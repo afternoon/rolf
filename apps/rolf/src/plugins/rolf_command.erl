@@ -36,7 +36,7 @@ start(_Service) -> ok.
 
 %% @doc Execute the command and return the parsed results.
 collect(Service) ->
-    parse_output(Service#service.plugin, os:cmd(Service#service.command)).
+    parse_output(Service, os:cmd(Service#service.command)).
 
 %% @doc Stop collector.
 stop(_Service) -> ok.
@@ -46,9 +46,9 @@ stop(_Service) -> ok.
 %% ===================================================================
 
 %% @doc Parse output from external command.
-parse_output(Plugin, Output) ->
+parse_output(Service, Output) ->
     Values = [parse_line(Line) || Line <- split_lines(Output)],
-    #sample{node=node(), service=Plugin, values=Values}.
+    #sample{node=node(), service=Service, values=Values}.
 
 %% @doc Split output into lines, drop terminating ".\n" line.
 split_lines(Lines) ->
