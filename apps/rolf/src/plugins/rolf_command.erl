@@ -73,6 +73,8 @@ list_to_num(S) ->
 %% Tests
 %% ===================================================================
 
+-ifdef(TEST).
+
 list_to_num_test() ->
     ?assertEqual(99, list_to_num("99")),
     ?assertEqual(-1, list_to_num("-1")),
@@ -103,3 +105,5 @@ parse_output_many_test() ->
                                  {ttfb, 0.65},
                                  {rendertime, 2}]},
                  Result).
+
+-endif.

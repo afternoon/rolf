@@ -116,6 +116,8 @@ propmerge(L1, L2) ->
 %% Tests
 %% ===================================================================
 
+-ifdef(TEST).
+
 configfilename_to_atom_test() ->
     ?assertEqual(disk, configfilename_to_atom("plugins/disk/disk.config")).
 
@@ -150,3 +152,5 @@ parse_options_test() ->
 propmerge_test() ->
     ?assertEqual([{a, 1}, {b, 2}], propmerge([{a, 1}], [{b, 2}])),
     ?assertEqual([{a, 2}], propmerge([{a, 1}], [{a, 2}])).
+
+-endif.

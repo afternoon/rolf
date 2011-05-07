@@ -158,7 +158,11 @@ send(Recorders, Sample) ->
 %% Tests
 %% ===================================================================
 
+-ifdef(TEST).
+
 server_name_test() ->
     Name = list_to_atom("rolf_service_loadtime"),
     ?assertEqual(Name, server_name(loadtime)),
     ?assertEqual(Name, server_name(#service{name=loadtime})).
+
+-endif.

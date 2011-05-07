@@ -20,7 +20,9 @@
 %% along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 %% import eunit macros into all modules
+-ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-endif.
 
 %% @doc State record for Rolf recorder.
 -record(recorder, {collectors=[],

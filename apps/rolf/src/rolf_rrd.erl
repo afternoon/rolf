@@ -113,6 +113,8 @@ make_ds_update(Metric, Value) ->
 %% Tests
 %% ===================================================================
 
+-ifdef(TEST).
+
 string_format_test() ->
     ?assertEqual("X:1:9.5:z", string_format("~s:~b:~.1f:~p", ["X", 1, 9.5, z])).
 
@@ -138,3 +140,5 @@ make_update_test() ->
     DSUpdates = [#rrd_ds_update{name="loadtime", value=0.99}],
     Expected = #rrd_update{file=Path, updates=DSUpdates},
     ?assertEqual(Expected, Update).
+
+-endif.
