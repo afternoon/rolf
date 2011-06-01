@@ -37,11 +37,22 @@ start(Service) ->
 
 %% @doc HTTP load time collector function for Rolf. Options should contain a key
 %% urls with value [{Name, Url}].
-collect(Service, {Host, Port, Opts, PluginName}=State) ->
-    {ok, Sock} = gen_tcp:connect(Host, Port, Opts),
-    Values = fetch(Sock, PluginName),
-    ok = gen_tcp:close(Sock),
-    {State, #sample{node=node(), service=Service, values=Values}}.
+collect(Service, {Host, Port, Opts, Plugin}=State) ->
+    case gen_tcp:connect(Host, Port, Opts) of
+        {ok, Sock} ->
+            case gen_tcp:recv(Sock, 0) of
+                {ok, _Banner} ->
+                    Values = fetch(Sock, Plugin),
+                    ok = gen_tcp:close(Sock),
+                    {State, #sample{node=node(), service=Service, values=Values}};
+                {error, Reason} ->
+                    log4erl:error("Error reading from ~p:~p: ~p", [Host, Port, Reason]),
+                    {State, #sample{node=node(), service=Service, values=[]}}
+            end;
+        {error, Reason} ->
+            log4erl:error("Couldn't connect to ~p:~p: ~p", [Host, Port, Reason]),
+            {State, #sample{node=node(), service=Service, values=[]}}
+    end.
 
 %% @doc Stop collector.
 stop(_State, _Service) ->
@@ -54,15 +65,15 @@ stop(_State, _Service) ->
 %% @doc Extract the socket parameters from service config.
 munin_node_params(Service) ->
     Config = Service#service.config,
-    Host = proplists:get_value(munin_host, Config),
-    Port = proplists:get_value(munin_port, Config, 4949),
+    Host = proplists:get_value(host, Config),
+    Port = proplists:get_value(port, Config, 4949),
     {ok, Opts} = application:get_env(munin_node_sock_opts),
-    PluginName = proplists:get_value(munin_plugin_name, Config),
-    {Host, Port, Opts, PluginName}.
+    Plugin = proplists:get_value(plugin, Config),
+    {Host, Port, Opts, Plugin}.
 
 %% @doc Fetch values from socket connection to Munin node.
-fetch(Sock, ServiceName) ->
-    ok = gen_tcp:send(rolf_util:string_format("fetch ~p\n", ServiceName)),
+fetch(Sock, Plugin) ->
+    ok = gen_tcp:send(Sock, rolf_util:string_format("fetch ~p\n", [Plugin])),
     read_values(Sock).
 
 %% @doc Read values from Sock until . on it's own on a line is encountered.
@@ -73,8 +84,10 @@ read_values(Sock, Values) ->
         {ok, Data} ->
             case Data of
                 ".\n" ->
+                    log4erl:debug("Munin node fetch complete: ~p", [Values]),
                     Values;
                 Line ->
+                    log4erl:debug("Munin node fetch got: ~p", [Line]),
                     read_values(Sock, [parse_line(Line)|Values])
             end;
         {error, closed} ->

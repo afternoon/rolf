@@ -22,7 +22,7 @@
 -module(rolf_util).
 
 %% rolf_collector callbacks
--export([string_format/2, list_to_num/1, strip_whitespace/1]).
+-export([string_format/2, list_to_num/1, num_to_list/1, strip_whitespace/1]).
 
 -include("rolf.hrl").
 
@@ -36,10 +36,19 @@ string_format(Pattern, Values) ->
 
 %% @doc Coerce a string to a float or an integer.
 list_to_num(S) ->
-    S_ = strip_whitespace(S),
-    try list_to_float(S_) catch
+    S1 = strip_whitespace(S),
+    try list_to_float(S1) catch
         error:badarg ->
-            try list_to_integer(S_) catch
+            try list_to_integer(S1) catch
+                error:badarg -> error
+            end
+    end.
+
+%% @doc Coerce a number to a string sanely.
+num_to_list(N) ->
+    try integer_to_list(N) catch
+        error:badarg ->
+            try hd(io_lib:format("~.10f",[N])) catch
                 error:badarg -> error
             end
     end.
@@ -71,6 +80,11 @@ list_to_num_test() ->
     ?assertEqual(99, list_to_num("  99\n ")),
     ?assertEqual(error, list_to_num("monkey")).
 
+num_to_list_test() ->
+    ?assertEqual("99", num_to_list(99)),
+    ?assertEqual("99.9000000000", num_to_list(99.9)).
+
 strip_whitespace_test() ->
     ?assertEqual("blah", strip_whitespace("  blah\n\t ")).
+
 -endif.

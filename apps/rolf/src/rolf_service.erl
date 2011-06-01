@@ -93,9 +93,9 @@ handle_cast(stop_emitting, {Service, CState}) ->
     {noreply, {#service{tref=undefined}, CState}};
 
 handle_cast(publish, {Service, CState}) ->
-    Sample = apply(Service#service.module, collect, [Service, CState]),
+    {CState1, Sample} = apply(Service#service.module, collect, [Service, CState]),
     send(Service#service.recorders, Sample),
-    {noreply, {Service, CState}};
+    {noreply, {Service, CState1}};
 
 %% @doc Log unhandled casts.
 handle_cast(Req, State) ->
