@@ -67,77 +67,77 @@ publish(Name) ->
 init([Service]) ->
     process_flag(trap_exit, true),
     net_kernel:monitor_nodes(true),
-    apply(Service#service.module, start, [Service]),
-    {ok, Service}.
+    CState = apply(Service#service.module, start, [Service]),
+    {ok, {Service, CState}}.
 
 %% @doc Log unhandled calls.
-handle_call(Req, From, Service) ->
+handle_call(Req, From, State) ->
     log4erl:debug("Unhandled call from ~p: ~p", [From, Req]),
-    {reply, Service}.
+    {reply, State}.
 
-handle_cast(start_emitting, Service) ->
+handle_cast(start_emitting, {Service, CState}) ->
     Name = Service#service.name,
     Freq = Service#service.frequency,
     log4erl:info("~p started emitting (frequency ~p)", [Name, Freq]),
     apply(?MODULE, publish, [Name]),
     case timer:apply_interval(timer:seconds(Freq), ?MODULE, publish, [Name]) of
         {ok, TRef} ->
-            {noreply, Service#service{tref=TRef}};
+            {noreply, {Service#service{tref=TRef}, CState}};
         _ ->
-            {noreply, Service}
+            {noreply, {Service, CState}}
     end;
 
-handle_cast(stop_emitting, Service) ->
+handle_cast(stop_emitting, {Service, CState}) ->
     log4erl:info("~p stopped emitting", [Service#service.name]),
     timer:cancel(Service#service.tref),
-    {noreply, Service#service{tref=undefined}};
+    {noreply, {#service{tref=undefined}, CState}};
 
-handle_cast(publish, Service) ->
-    Sample = apply(Service#service.module, collect, [Service]),
+handle_cast(publish, {Service, CState}) ->
+    Sample = apply(Service#service.module, collect, [Service, CState]),
     send(Service#service.recorders, Sample),
-    {noreply, Service};
+    {noreply, {Service, CState}};
 
 %% @doc Log unhandled casts.
-handle_cast(Req, Service) ->
+handle_cast(Req, State) ->
     log4erl:debug("Unhandled cast: ~p", [Req]),
-    {noreply, Service}.
+    {noreply, State}.
 
 %% @doc Handle nodeup messages from monitoring nodes.
-handle_info({nodeup, Node}, Service) ->
+handle_info({nodeup, Node}, {Service, CState}) ->
     case lists:member(Node, rolf_recorder:recorders()) of
         true ->
             log4erl:info("Recorder ~p up", [Node]),
             OldRecs = Service#service.recorders,
-            {noreply, Service#service{recorders=[Node|OldRecs]}};
+            {noreply, {Service#service{recorders=[Node|OldRecs]}, CState}};
         _ ->
-            {noreply, Service}
+            {noreply, {Service, CState}}
     end;
 
 %% @doc Handle nodedown messages from monitoring nodes.
-handle_info({nodedown, Node}, Service) ->
+handle_info({nodedown, Node}, {Service, CState}) ->
     Live = rolf_recorder:live_recorders(),
     case Live of
         [] ->
             log4erl:info("Recorder ~p down, exiting", [Node]),
-            {stop, no_recorders, Service};
+            {stop, no_recorders, {Service, CState}};
         _ ->
             log4erl:info("Recorder ~p down", [Node]),
             {noreply, Service#service{recorders=Live}}
     end;
 
 %% @doc Log unhandled info messages.
-handle_info(Info, Service) ->
+handle_info(Info, State) ->
     log4erl:debug("Unhandled info: ~p", [Info]),
-    {noreply, Service}.
+    {noreply, State}.
 
 %% @doc Terminate
-terminate(_Reason, Service) ->
+terminate(_Reason, {Service, CState}) ->
     stop_emitting(Service),
     Module = Service#service.module,
-    apply(Module, stop, [Service]),
+    apply(Module, stop, [Service, CState]),
     ok.
 
-code_change(_OldVsn, Service, _Extra) -> {ok, Service}.
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 %% ===================================================================
 %% Utility functions

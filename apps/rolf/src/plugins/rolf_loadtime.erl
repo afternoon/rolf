@@ -23,7 +23,7 @@
 -behaviour(rolf_collector).
 
 %% rolf_collector callbacks
--export([start/1, collect/1, stop/1]).
+-export([start/1, collect/2, stop/2]).
 
 %% helpers
 -export([time_url/1]).
@@ -40,14 +40,15 @@ start(_Service) ->
 
 %% @doc HTTP load time collector function for Rolf. Options should contain a key
 %% urls with value [{Name, Url}].
-collect(Service) ->
+collect(Service, State) ->
     Config = Service#service.config,
     Url = proplists:get_value(url, Config, []),
     Values = [{loadtime, time_url(Url)}],
-    #sample{node=node(), service=Service, values=Values}.
+    Sample = #sample{node=node(), service=Service, values=Values},
+    {State, Sample}.
 
 %% @doc Stop collector.
-stop(_Service) ->
+stop(_Service, _State) ->
     inets:stop().
 
 %% ===================================================================

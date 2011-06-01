@@ -39,4 +39,5 @@
          {plugin_default_type, gauge},
          {plugin_default_draw, line},
          {rrd_dir, "data"},
-         {rrd_ext, "rrd"}]}]}.
+         {rrd_ext, "rrd"},
+         {munin_node_sock_opts, [list, {packet, line}, {active, false}]}]}]}.

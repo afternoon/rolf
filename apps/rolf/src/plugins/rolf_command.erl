@@ -23,7 +23,7 @@
 -behaviour(rolf_collector).
 
 %% rolf_collector callbacks
--export([start/1, collect/1, stop/1]).
+-export([start/1, collect/2, stop/2]).
 
 -include("rolf.hrl").
 
@@ -35,11 +35,11 @@
 start(_Service) -> ok.
 
 %% @doc Execute the command and return the parsed results.
-collect(Service) ->
-    parse_output(Service, os:cmd(Service#service.command)).
+collect(Service, State) ->
+    {State, parse_output(Service, os:cmd(Service#service.command))}.
 
 %% @doc Stop collector.
-stop(_Service) -> ok.
+stop(_Service, _State) -> ok.
 
 %% ===================================================================
 %% Helper functions
@@ -55,32 +55,16 @@ split_lines(Lines) ->
     Lines1 = string:tokens(Lines, "\n"),
     lists:filter(fun(L) -> L /= "." end, Lines1).
 
-%% @doc Parse line into {atom, int_or_float} tuple/
+%% @doc Parse line into {atom, int_or_float} tuple.
 parse_line(Line) ->
     {K, V} = list_to_tuple(string:tokens(Line, " ")),
-    {list_to_atom(K), list_to_num(V)}.
-
-%% @doc Coerce a string to a float or an integer.
-list_to_num(S) ->
-    try list_to_float(S) catch
-        error:badarg ->
-            try list_to_integer(S) catch
-                error:badarg -> error
-            end
-    end.
+    {list_to_atom(K), rolf_util:list_to_num(V)}.
 
 %% ===================================================================
 %% Tests
 %% ===================================================================
 
 -ifdef(TEST).
-
-list_to_num_test() ->
-    ?assertEqual(99, list_to_num("99")),
-    ?assertEqual(-1, list_to_num("-1")),
-    ?assertEqual(0.999, list_to_num("0.999")),
-    ?assertEqual(-3.14, list_to_num("-3.14")),
-    ?assertEqual(error, list_to_num("monkey")).
 
 split_lines_test() ->
     Result = split_lines("loadtime 0.99\n.\n"),

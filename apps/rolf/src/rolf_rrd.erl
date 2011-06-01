@@ -73,10 +73,6 @@ send_command(RRD, Cmd) ->
             ok
     end.
 
-%% @doc Sane string formatting.
-string_format(Pattern, Values) ->
-    lists:flatten(io_lib:format(Pattern, Values)).
-
 %% @doc Create absolute path for RRD file for Service running on Node. A single
 %% RRD file contains values for multiple metrics (data sources).
 rrd_path(Node, Service) ->
@@ -94,11 +90,11 @@ make_rrd_create(Path, #service{frequency=Frequency, timeout=Timeout,
 
 %% @doc Create an average rrd_rra record from a step and a count.
 make_rra(Step, Count) ->
-    #rrd_rra{cf=average, args=string_format("0.5:~b:~b", [Step, Count])}.
+    #rrd_rra{cf=average, args=rolf_util:string_format("0.5:~b:~b", [Step, Count])}.
 
 %% @doc Make a rrd_ds record from a metric definition.
 make_ds(#metric{name=Name, type=Type}, Timeout) ->
-    #rrd_ds{name=atom_to_list(Name), type=Type, args=string_format("~b:U:U", [Timeout])}.
+    #rrd_ds{name=atom_to_list(Name), type=Type, args=rolf_util:string_format("~b:U:U", [Timeout])}.
 
 %% @doc Make an rrd_update record from an RRD path and a set of values.
 make_update(Path, Values) ->
@@ -114,9 +110,6 @@ make_ds_update(Metric, Value) ->
 %% ===================================================================
 
 -ifdef(TEST).
-
-string_format_test() ->
-    ?assertEqual("X:1:9.5:z", string_format("~s:~b:~.1f:~p", ["X", 1, 9.5, z])).
 
 rrd_path_test() ->
     {ok, RRDDir} = application:get_env(rrd_dir),

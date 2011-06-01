@@ -25,5 +25,5 @@
 -export([behaviour_info/1]).
 
 %% @doc Return behaviour information.
-behaviour_info(callbacks) -> [{start, 1}, {collect, 1}, {stop, 1}];
+behaviour_info(callbacks) -> [{start, 1}, {collect, 2}, {stop, 2}];
 behaviour_info(_) -> undefined.
