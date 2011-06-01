@@ -103,7 +103,7 @@ make_update(Path, Values) ->
 
 %% @doc Make an rrd_ds_update record for a measurement.
 make_ds_update(Metric, Value) ->
-    #rrd_ds_update{name=atom_to_list(Metric), value=rolf_util:num_to_list(Value)}.
+    #rrd_ds_update{name=atom_to_list(Metric), value=mochinum:digits(Value)}.
 
 %% ===================================================================
 %% Tests
